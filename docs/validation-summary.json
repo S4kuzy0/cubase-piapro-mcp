@@ -1,12 +1,12 @@
 {
   "date_beijing": "2026-10-16",
-  "version": "0.1.0",
-  "automatic_tests": 15,
+  "version": "0.2.0",
+  "automatic_tests": 30,
   "stdio_modes": [
     "auto",
     "legacy"
   ],
-  "tools": 16,
+  "tools": 22,
   "live_acceptance_passed": true,
   "live_checks": {
     "all_midi_actions": true,
@@ -26,8 +26,26 @@
     "non_silent": true
   },
   "midi_protocol": 2,
+  "track_protocol": 3,
+  "inventory_driver": "host-cache-1",
+  "new_live_checks": {
+    "template_copy_open_and_readback": true,
+    "first_piapro_add_load_and_editor": true,
+    "audio_and_midi_additions": true,
+    "uid_selection_and_piapro_reuse": true,
+    "duplicate_piapro_and_stale_revision_rejected": true,
+    "midi_only_queries": 50,
+    "empty_project_queries": 100,
+    "new_crash_dumps": 0,
+    "last_track_and_piapro_removal": true,
+    "training_notes_restored": 3489,
+    "training_piapro_tracks_restored": 3,
+    "training_musical_chunks_identical": true,
+    "original_training_cpr_unchanged": true
+  },
   "original_cubase_copy_identical": true,
-  "temporary_cubase_closed_normally": true,
+  "temporary_projects_closed_normally": true,
+  "user_cubase_kept_running": true,
   "registered_config_launch_verified": true,
   "private_repo": "https://github.com/S4kuzy0/cubase-piapro-mcp"
 }

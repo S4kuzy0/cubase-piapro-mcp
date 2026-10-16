@@ -70,7 +70,7 @@ def piapro_root():
         w
         for w in windows()
         if w["visible"]
-        and w["class"] != "#32770"
+        and w["class"].startswith("Afx:")
         and "piapro studio" in w["title"].lower()
     ]
     if len(matches) != 1:
@@ -194,24 +194,35 @@ def dialogs(pid):
 
 
 def activate_editor(hwnd):
+    if piapro_root()["handle"] != hwnd or dialogs(window_record(hwnd)["pid"]):
+        raise IntegrationError("FOCUS_TARGET_CHANGED", "The editor or dialog state changed before activation.")
+    return activate_window(hwnd)
+
+
+def activate_window(hwnd):
+    """Activate one verified Cubase-owned native window; never click its content."""
     wa, wg, _ = api()
+    matches = [window for window in windows() if window["handle"] == hwnd and window["visible"]]
+    if len(matches) != 1:
+        raise IntegrationError("FOCUS_TARGET_CHANGED", "The Cubase window is no longer visible.")
+    pending = dialogs(matches[0]["pid"])
+    if pending and hwnd not in {dialog["handle"] for dialog in pending}:
+        raise IntegrationError("DIALOG_BUSY", "Handle the existing native dialog before changing focus.")
     if wg.IsIconic(hwnd):
         wg.ShowWindow(hwnd, 9)
     try:
         wg.SetForegroundWindow(hwnd)
     except Exception:
         pass  # Windows may retain focus in the user's foreground application.
-    if wg.GetForegroundWindow() == hwnd:
-        return "native"
+    deadline = time.monotonic() + .25
+    while time.monotonic() < deadline:
+        if wg.GetForegroundWindow() == hwnd:
+            return "native"
+        time.sleep(.025)
     if os.environ.get("CUBASE_PIAPRO_FOCUS_CLICK") != "1":
         raise IntegrationError(
             "FOCUS_REQUIRED",
             "Activate Piapro, or opt into the verified title-bar focus fallback with CUBASE_PIAPRO_FOCUS_CLICK=1.",
-        )
-    if piapro_root()["handle"] != hwnd or dialogs(window_record(hwnd)["pid"]):
-        raise IntegrationError(
-            "FOCUS_TARGET_CHANGED",
-            "The editor or dialog state changed before activation.",
         )
     user32 = ctypes.windll.user32
     set_dpi = user32.SetThreadDpiAwarenessContext
@@ -236,7 +247,9 @@ def activate_editor(hwnd):
         wa.SetCursorPos(point)
         wa.mouse_event(2, 0, 0, 0, 0)
         wa.mouse_event(4, 0, 0, 0, 0)
-        time.sleep(0.08)
+        deadline = time.monotonic() + .6
+        while wg.GetForegroundWindow() != hwnd and time.monotonic() < deadline:
+            time.sleep(.025)
     finally:
         wa.SetCursorPos(cursor)
         if not was_topmost:

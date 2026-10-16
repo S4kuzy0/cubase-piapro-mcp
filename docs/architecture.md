@@ -11,7 +11,9 @@ Codex 通过本机 stdio 启动官方 Python MCP SDK 服务。文件处理不需
 | MIDI | mido 起止事件配对 | 标准同步 MIDI 文件；歌词及音素编辑使用 VSQX |
 | CPR | CubaseTools 核心与保留重名轨道的包装 | 启发式、部分、只读；不是实时轨道标识 |
 | Piapro 现场 | 动态 Win32 菜单、原生文件对话框 | 恰好打开一个编辑器；不能处理任意自绘对话框 |
-| Cubase 现场 | MIDI Remote 官方宿主 API、loopMIDI | 当前选中通道及走带；需协议相符的驱动回传 |
+| Cubase 现场 | MIDI Remote 官方宿主 API、loopMIDI | 宿主 UID、轨道选择、走带和混音；前 64 个支持通道 |
+| 工程创建 | 注册的独立 CPR 原字节复制、宿主打开与回读 | 仅新目录；不修改 CPR 二进制，不隐式关闭工程 |
+| 音轨添加 | MIDI Remote AddTrack 命令、原生 Edit/Button | MIDI/Piapro 自绘选择器需显式启用受限布局后备 |
 
 PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映射与原始时序一致时同步两处；其他插件及未知块保持原内容。原生时序操作不延长区段原有音符终点，扩展使用 VSQX。
 
@@ -35,6 +37,12 @@ PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映�
 | `piapro_export` | PPSF、VSQX 或选中音轨 WAV 导出 |
 | `piapro_import` | 先快照，再从不可变暂存副本导入 |
 | `cubase_control` | 播放、停止、录音、选中通道音量、声像、静音和独奏 |
+| `cubase_list_templates` | 校验并列出本机独立 CPR 模板 |
+| `cubase_create_project` | 复制到新目录并按需打开，分别报告文件创建与现场回读 |
+| `cubase_list_tracks` | 回读前 64 个支持通道的宿主 UID、类型、名称、乐器、选中状态和 revision |
+| `cubase_select_track` | 使用当前 revision 与实际 UID 选轨，连续回传核验 |
+| `cubase_add_track` | 添加单个 audio/midi/piapro 轨，保存原清单检查点并核验增量 |
+| `cubase_load_piapro` | 复用、选中并打开已有 Piapro，或添加首个实例；核验原生编辑器及菜单 |
 
 ## 写入与回读约定
 
@@ -50,11 +58,13 @@ VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在�
 
 默认只请求原生激活。Windows 拒绝切换前台时，返回 `FOCUS_REQUIRED`。安装时加 `--focus-click`，或设置 `CUBASE_PIAPRO_FOCUS_CLICK=1`，可启用受限后备：检查编辑器进程、无模态对话框、标题栏遮挡及窗口几何后，只点击标题栏取得焦点，并恢复原鼠标位置和置顶状态。音符、歌词、曲线和文件路径均不通过坐标操作。本机已启用此选项。
 
-首次创建 Cubase 工程、加载插件及选择 WAV 要导出的 Piapro 音轨，仍可能使用界面。MCP 不提供任意桌面点击工具。
+模板复制及按 UID 选轨不使用鼠标。添加音频轨通过原生控件消息；添加 MIDI/Piapro 时，自绘选择器没有可用的原生列表接口，需要 `allow_dialog_fallback=true`。后备以 Name 原生 Edit 为锚，核验 Cubase 14 英文布局、窗口尺寸和 DPI 后投递对话框相对指针消息；搜索内容、轨道名和 Add Track 提交使用原生控件消息。输入路由缺少独立回读，新增轨道尚未保存。MCP 不提供任意桌面点击工具。
 
 ## 反馈与故障处理
 
-驱动协议版本为 2。查询使用独立随机请求号，反馈仅来自宿主的 `mOnProcessValueChange`，不把控制器输入当作宿主结果；写入后需多次回传稳定。走带使用 Transport 命令，混音使用绝对跳转绑定。独奏可能影响宿主关联静音状态，返回结果包含其他字段的实际变化。
+走带/混音保留协议 2；轨道清单使用协议 3 分帧 UTF-16，另有协议 5 的 `host-cache-1` 版本握手。客户端未取得握手时不发送清单查询或重置 bank。宿主事件回调在通道已填充时缓存 UID、名称与类型；查询只序列化缓存，不在 MIDI 输入回调中读取原生通道对象。停用页面时清空缓存，重新激活更新会话标识。详见 [轨道查询回归](crash-regression.md)。
+
+反馈仅来自宿主，不把控制器输入当作宿主结果；写入后需多次回传稳定。走带使用 Transport 命令，混音使用绝对跳转绑定。独奏可能影响宿主关联静音状态，返回结果包含其他字段的实际变化。轨道 revision 包含会话与有序 UID/名称/类型/插件，选中状态不影响它；原生 UID 尚未取得时不能以槽位或名称授权写操作。
 
 | 错误码 | 处理 |
 |---|---|
@@ -67,6 +77,12 @@ VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在�
 | `UNVERIFIED_LIVE_CHANGE` | 命令可能已执行，先读取状态，勿盲目重复切换 |
 | `COMMAND_DISABLED` | 检查乐曲和所选音轨；WAV 需选中音轨 |
 | `IMPORT_INCOMPLETE` | 读取具体对话框信息，保留并按需恢复返回的 PPSF 快照 |
+| `TRACK_DRIVER_REQUIRED` | 打开/激活工程并重载新版驱动；无版本握手时未发送轨道查询 |
+| `TRACK_LIST_CHANGED` | 重新读取清单后使用新 revision |
+| `TRACK_ID_PENDING` | 等待宿主 UID 到达；不能用 CPR 索引、名称或槽位替代 |
+| `PIAPRO_ALREADY_LOADED` | 调用加载工具复用已有实例，避免 E10 |
+| `TRACK_OPERATION_INCOMPLETE` | 操作可能部分执行；先检查现场与返回的检查点，勿盲目重复添加 |
+| `UNSUPPORTED_ADD_TRACK_LAYOUT` | 当前版本、语言或 DPI 布局未通过校验，未发送内容坐标输入 |
 
 ## 来源与部署
 

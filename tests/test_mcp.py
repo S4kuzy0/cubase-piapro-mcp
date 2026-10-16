@@ -39,6 +39,10 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
                 "create_vsqx",
                 "piapro_export",
                 "cubase_control",
+                "cubase_create_project",
+                "cubase_add_track",
+                "cubase_select_track",
+                "cubase_load_piapro",
             } <= names
             initial = await client.call_tool(
                 "inspect_project", {"path": str(source), "include_notes": True}
@@ -72,5 +76,7 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
             )
             assert not (tmp_path / "bad.vsqx").exists()
             assert not (await client.call_tool("get_capabilities", {})).is_error
+            templates = unpack(await client.call_tool("cubase_list_templates", {}))
+            assert templates["templates"] == []
 
     asyncio.run(scenario())

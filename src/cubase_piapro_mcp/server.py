@@ -10,7 +10,7 @@ from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict
 
-from . import __version__, projects, storage, live_midi, windows
+from . import __version__, projects, storage, live_midi, windows, cubase, project_templates
 
 mcp = MCPServer(
     "cubase-piapro",
@@ -20,6 +20,9 @@ mcp = MCPServer(
         "CPR inspection is partial and read-only; its indexes are not live track IDs. "
         "Import makes a snapshot first, then requires export/readback verification. "
         "Live mixer controls apply only to the selected Cubase channel. "
+        "List live tracks to obtain real host IDs and the current revision before track operations. "
+        "Create projects from local standalone templates; never close an existing project implicitly. "
+        "Piapro supports only one instance per computer: reuse the existing instance. "
         "Do not claim success when verified/connected is false or an error is returned."
     ),
 )
@@ -69,7 +72,11 @@ def get_capabilities() -> dict:
         "cpr": "partial read-only",
         "native_ppsf_gate": "exact binary roundtrip; sizes preserve native tails; only events and matching editor timing copies may change",
         "live_control": "selected channel and transport over MIDI Remote, only if live feedback is available",
+        "live_tracks": "host-cache-1 handshake, protocol-3 cached host UIDs/names/types/plugin identity, selection, and single audio/MIDI/Piapro additions; first 64 supported mixer tracks",
+        "project_creation": "byte-copy a registered local standalone CPR template into a new directory; open only when no project is already open",
+        "piapro_loading": "reuse/select/open the single existing instance, or add its first instrument track",
         "piapro_ui": "dynamic Win32 menus and standard dialogs; optional verified title-bar click for activation only",
+        "cubase_dialog_fallback": "explicit allow_dialog_fallback for validated Cubase 14 English instrument/input selectors: DPI-scaled dialog-relative pointer messages, native search edit and key messages",
         "focus_click_enabled": os.environ.get("CUBASE_PIAPRO_FOCUS_CLICK") == "1",
         "backups": True,
         "concurrency": "required source SHA-256 plus per-target cross-process locks",
@@ -78,6 +85,9 @@ def get_capabilities() -> dict:
             "No Piapro NT ZIP editing",
             "Note insertion/deletion requires VSQX",
             "No automatic claim of live state after a file edit",
+            "Piapro cannot run multiple plugin instances on the same computer (E10)",
+            "New project creation does not close an existing project; template plugins/voicebanks must already be installed",
+            "Additions are live/unsaved; MIDI input selection has no independent host routing readback",
         ],
         "state_dir": str(storage.state_dir()),
     }
@@ -287,6 +297,52 @@ def piapro_import(
 def cubase_control(action: str, value: float | None = None) -> dict:
     """Control play/stop/record or selected channel volume/pan/mute/solo via MIDI Remote. Success requires host feedback. Record starts recording."""
     return live_midi.control(action, value)
+
+
+@mcp.tool(annotations=READ)
+def cubase_list_templates() -> dict:
+    """List hash-verified local standalone CPR templates. Templates contain no bundled commercial plugins or voicebanks."""
+    return project_templates.list_templates()
+
+
+@mcp.tool(annotations=WRITE)
+def cubase_create_project(
+    template_id: str, project_directory: str, name: str | None = None,
+    open_project: bool = True, timeout_seconds: int = 40,
+) -> dict:
+    """Create a native project by byte-copying a registered local template into a NEW absolute directory. Never replaces existing content or closes another project. Opening requires no currently open project. Check live_state_verified; startup/licensing may remain pending. Use cubase_load_piapro afterward to verify its editor."""
+    return cubase.create_project(template_id, project_directory, name, open_project, timeout_seconds)
+
+
+@mcp.tool(annotations=READ)
+def cubase_list_tracks() -> dict:
+    """Read actual live track IDs, names, plugin identities and selection via MIDI Remote. Returns the revision required by track writes. Scope: first 64 audio/instrument/sampler/MIDI channels, including hidden channels; excludes folders, inputs and outputs. CPR indexes cannot be substituted."""
+    return live_midi.list_tracks()
+
+
+@mcp.tool(annotations=WRITE)
+def cubase_select_track(track_id: str, expected_revision: str) -> dict:
+    """Select a live host ID from cubase_list_tracks. Reject a stale revision; requires repeated real selected-track feedback. No cursor operations."""
+    with storage.file_lock(storage.state_dir() / "live-daw"):
+        return live_midi.select_track(track_id, expected_revision)
+
+
+@mcp.tool(annotations=WRITE)
+def cubase_add_track(
+    track_type: str, name: str, expected_revision: str,
+    allow_dialog_fallback: bool = False,
+) -> dict:
+    """Add ONE audio, midi or piapro host track and verify its new UID/name. Requires fresh live revision and stopped transport. MIDI/Piapro require explicit allow_dialog_fallback for bounded Cubase 14 English dialog-relative selector messages; audio uses native edit/button messages. Existing Piapro is rejected to prevent E10. New tracks remain unsaved; checkpoint records original inventory/selection."""
+    return cubase.add_track(track_type, name, expected_revision, allow_dialog_fallback)
+
+
+@mcp.tool(annotations=WRITE)
+def cubase_load_piapro(
+    expected_revision: str, track_name: str = "Piapro",
+    allow_dialog_fallback: bool = False,
+) -> dict:
+    """Reuse/select/open the single existing Piapro instance and verify its native editor/menus. If absent, add the FIRST Piapro instrument track; this requires explicit allow_dialog_fallback. Never replaces an existing instrument. Piapro's one-instance-per-computer limit also includes other DAWs."""
+    return cubase.load_piapro(expected_revision, track_name, allow_dialog_fallback)
 
 
 def main():

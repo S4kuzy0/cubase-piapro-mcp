@@ -27,3 +27,7 @@ Copyright 2020 sdercolin. Apache License, Version 2.0. The template and license 
 ## Runtime dependencies
 
 The official MCP Python SDK, lxml, mido, python-rtmidi, construct and construct-typing are installed as dependencies, with their upstream licenses. Versions are fixed in the tested dependency snapshot. No code from the alternative AGPL yoka server is included.
+
+## Steinberg interface reference
+
+The original MIDI Remote bridge uses the documented interfaces at https://github.com/steinbergmedia/midiremote_api_doc . The documentation was consulted as an API reference; no Steinberg implementation or documentation source is vendored. Cubase, Piapro, commercial plugins, voicebanks and local CPR templates are not distributed with this project.
