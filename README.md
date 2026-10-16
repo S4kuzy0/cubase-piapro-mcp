@@ -43,6 +43,8 @@ python -m venv .venv
 4. 不要把控制端口加入乐器轨的 All MIDI Inputs。
 5. 调用 `daw_get_status`，只有 `midi.connected` 为真才能使用反馈控制。
 
+loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名称并更新自启动路径，MCP 不依赖其安装目录。系统 MIDI 驱动及 Windows Installer 缓存仍由 Windows 管理。
+
 状态中的数值采用 MIDI Remote 的归一化值，不代表音量分贝。控制对象为当前选中通道，不能用 CPR 解析出的序号代替它。
 
 ## 使用流程
