@@ -1,0 +1,36 @@
+{
+  "pinned_sources": [
+    {
+      "repository": "https://github.com/SoulMelody/LibreSVIP",
+      "commit": "98d2e5cd84eb139bb611b8c9159d996962c5d1c9",
+      "license": "MIT",
+      "files": {
+        "libresvip_legacy/LICENSE.txt": "b10f395e8768a14c8af4b4dfb9c042c54678497f24393808a659a72bf28e08e7",
+        "libresvip_legacy/model.py": "83d022ea9de98845c48a6a09160f76957e45412af73d70793caa98379491e1c2",
+        "libresvip_legacy/__init__.py": "4f63507efc66ef8025e23a6aac0cd53769c190a89cc72a3eb601fe6281f534e9"
+      }
+    },
+    {
+      "repository": "https://github.com/schwifty00/CubaseTools",
+      "commit": "b525d6c0e6d01a6ec13c3c4d3401c7c7ac25155d",
+      "license": "MIT",
+      "files": {
+        "cubasetools/LICENSE.txt": "ee9b09407c49b5206ec6ee34d330cc7a0ca1917cdb5c50d1725175c34e6a3dc9",
+        "cubasetools/__init__.py": "4dc387ee7b431f7cbf4ea1df258842cffe570ab58fecde5f461f1b5084066997",
+        "cubasetools/core/audio_patterns.py": "0193a7d484245855890aeaf3e26216deafe40be0ef1d5ae45849805325abf2d2",
+        "cubasetools/core/constants.py": "5a3689ac0f997ef735f560c4153dc2b52366427d7ae8ad51e364c68a711bf0eb",
+        "cubasetools/core/cpr_parser.py": "298f9b0443bd013288a7e80e061d354ad67ca8e2de61401b5bc9d4bd3f2370ae",
+        "cubasetools/core/models.py": "72ef59d455b047ee24ff820c650b89002796c4a966544b0e2cfd31f14208f88f",
+        "cubasetools/core/plugin_registry.py": "62dc503d7b41a15b1d7607d5c5daefc6562856b778492ae05f77f701f98fa649",
+        "cubasetools/core/realworld.py": "85b3c920a40e6d36ee482bb1752c55158ab05985269f8ec77c4968274b51a959",
+        "cubasetools/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cubasetools/core/extractors/media.py": "5c333cf1f79a9c14151994e521d32bb7bc1ac46547068dd28e0d12a43bec0295",
+        "cubasetools/core/extractors/metadata.py": "fdf8562b4348763629c3abc4c6574ed4476446d44d2dd973c0dd614bbbc7fdb2",
+        "cubasetools/core/extractors/mixer.py": "1bcb2cb913c6d80770ffd8410b12893c9606791df39c69282767660673605797",
+        "cubasetools/core/extractors/plugins.py": "6a4aad8dcabd1e3ea6d768cddc03b94abadee9f8b74e6ea1be76bc0ce872bb41",
+        "cubasetools/core/extractors/tracks.py": "2be2beaa3d68da0f78969cbd1c9e131f5b21f823b7b1a3986d3ca501acbe8c05",
+        "cubasetools/core/extractors/__init__.py": "45ad58350985ae8428e31ca887462ba71a45284ef198d80358513151ef349650"
+      }
+    }
+  ]
+}

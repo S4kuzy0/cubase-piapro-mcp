@@ -1,0 +1,33 @@
+{
+  "date_beijing": "2026-10-16",
+  "version": "0.1.0",
+  "automatic_tests": 15,
+  "stdio_modes": [
+    "auto",
+    "legacy"
+  ],
+  "tools": 16,
+  "live_acceptance_passed": true,
+  "live_checks": {
+    "all_midi_actions": true,
+    "native_six_fields_roundtrip": true,
+    "rejected_import_is_actionable_error": true,
+    "original_score_restored": true,
+    "host_values_restored": true
+  },
+  "audio": {
+    "format": 1,
+    "channels": 2,
+    "sample_rate": 44100,
+    "bits": 16,
+    "duration_seconds": 2.55,
+    "peak": 0.132415771484375,
+    "rms": 0.03300867892963984,
+    "non_silent": true
+  },
+  "midi_protocol": 2,
+  "original_cubase_copy_identical": true,
+  "temporary_cubase_closed_normally": true,
+  "registered_config_launch_verified": true,
+  "private_repo": "https://github.com/S4kuzy0/cubase-piapro-mcp"
+}
