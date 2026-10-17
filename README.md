@@ -95,3 +95,7 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料；原始资料不随项目分发。
 
 22 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，本次故障隔离见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+### 开发中的歌手与 MIDI 路由扩展
+
+`singers.py` 已实现原生 PPSF 歌手表、逐轨 Program Change 的一致性检查、采用实际导出定义的歌手赋值，以及快照/导入/回读/失败恢复流程。包含八项新增测试，完整离线测试共三十八项通过；尚未完成宿主 A/B 验收，未注册为新增 MCP 工具，正式服务仍为上述二十二个工具。未知或带歌手自动化事件的布局拒绝写入。MIDI 输入输出路由仍在接口与界面后备验证阶段。现场测试按用户安排等待另一个训练任务完成，详情见项目记忆。
