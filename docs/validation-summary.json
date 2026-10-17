@@ -297,5 +297,10 @@
     },
     "release_source_files_checked": 42,
     "implementation_commit": "a5dcf37715808bf89e380acc795952b9167dd4d6"
-  }
+  },
+  "private_push_verified": true,
+  "release_url": "https://github.com/S4kuzy0/cubase-piapro-mcp/releases/tag/v0.5.0",
+  "release_tag": "v0.5.0",
+  "release_source_commit": "c31a046a86685ce4438d9c06d2c8e1aaaa529d8e",
+  "release_asset_digest_verified": true
 }

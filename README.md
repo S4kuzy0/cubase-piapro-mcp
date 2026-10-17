@@ -138,3 +138,5 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料，EVEC/表情样本通过 `CP_TEST_EXPRESSIONS`，范围与扩展音素通过 `CP_TEST_EVEC_SELECTION`，解锁后的实际宿主回归通过 `CP_TEST_EVEC_ACCEPTANCE` 指向本机自制 A/B 目录；乐曲、截图、音频及恢复点不随项目分发。
 
 33 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，查询边界修复见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+发布包与对应源码见 [v0.5.0 私有发布](https://github.com/S4kuzy0/cubase-piapro-mcp/releases/tag/v0.5.0)。发布 wheel 的远端摘要已与本机实际安装包核对。

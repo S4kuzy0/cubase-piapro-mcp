@@ -225,3 +225,5 @@ piapro_evec.py 的首次颜色/尾音生成采用动态标题与像素框定位�
 按 OpenAI 官方配置文档复核实际 Codex TOML，原 command/args/env 与验收配置相同；为多组 EVEC 只增加该服务器 tool_timeout_sec 为 900，完整原配置已读写备份并核对其他结构值不变。安装器同步支持相同备份、并发检查和严格回读。安装后官方 SDK 新进程再次核验 0.5.0、33 工具、范围文件读写、危险曲线与旧 SHA 拒绝，没有再启动 DAW。旧聊天可能缓存旧工具发现，后续新进程加载新版。实际配置及备份留在本机 E 盘，不上传。
 
 本轮恢复初始空原生快照并完整回读，再经原生 File/Close 关闭自己的工程、正常 WM_CLOSE 退出自己的 Cubase。原训练 CPR、测试 CPR 磁盘及实际驱动哈希全部不变；没有新增转储，loopMIDI 保留。没有创建等待自动化。功能发布遵守已记录的明确限制；特别是 release-only 变化颤音组合会报 RELEASE_ONLY_VIBRATO_UNSUPPORTED，不能声称支持或静默变平直。私有版本同步及发布收尾见下一段。
+
+0.5 发布收尾：实现提交 c31a046a86685ce4438d9c06d2c8e1aaaa529d8e 已推送，GitHub API 核验 main 包含本提交且仓库仍为私有。创建私有版本 v0.5.0 并上传已验证 wheel，发布地址为 https://github.com/S4kuzy0/cubase-piapro-mcp/releases/tag/v0.5.0；远端标签指向本实现提交，资产大小 131379 字节，GitHub 资产 digest 与本地 SHA-256 5f26a194cd8536d2b581e927dba8f2271a0ab9fb5cd72063cec472425ecc912b 完全一致。只上传源码/文档及已检查的 wheel，无个人配置、恢复点、乐谱、音频或声库。实际 0.5.0 安装、33 工具新进程、现场保护与全部所需验收已完成；后续维护从已记录的宿主限制继续，不重复轮询旧训练聊天。
