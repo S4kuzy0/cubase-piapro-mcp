@@ -52,6 +52,8 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
                 "edit_ppsf_note_expression",
                 "piapro_set_note_expression",
                 "piapro_set_part_evec",
+                "edit_ppsf_note_expression_range",
+                "piapro_set_note_expression_range",
             } <= names
             initial = await client.call_tool(
                 "inspect_project", {"path": str(source), "include_notes": True}
@@ -142,7 +144,7 @@ def test_real_stdio_native_singer_file_contract(tmp_path, mode):
         params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "run_server.py")], env=env)
         async with Client(params, mode=mode) as client:
             discovered = await client.list_tools()
-            assert len(discovered.tools) == 31
+            assert len(discovered.tools) == 33
             result = await client.call_tool("piapro_list_singers", {"path": native_path})
             assert not result.is_error
             current = unpack(result)
@@ -161,4 +163,32 @@ def test_real_stdio_native_singer_file_contract(tmp_path, mode):
                 "expected_sha256": "0" * 64, "track_index": 0, "singer_id": target["id"]})).is_error
             assert not (tmp_path / "refused.ppsf").exists()
 
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('mode', ['auto', 'legacy'])
+def test_real_stdio_expression_ranges(tmp_path, mode):
+    fixtures = os.environ.get('CP_TEST_EXPRESSIONS')
+    if not fixtures:
+        pytest.skip('Set CP_TEST_EXPRESSIONS to native references')
+    async def scenario():
+        source = Path(fixtures) / 'baseline.ppsf'
+        env = dict(os.environ, PYTHONUTF8='1', CUBASE_PIAPRO_STATE_DIR=str(tmp_path / 'state'))
+        params = StdioServerParameters(command=sys.executable, args=[str(ROOT / 'run_server.py')], env=env)
+        selection = {'ranges': [{'track_index': 2, 'part_index': 0, 'start_note_index': 1, 'end_note_index': 3}]}
+        async with Client(params, mode=mode) as client:
+            result = await client.call_tool('piapro_read_note_expression', {'path': str(source), 'selection': selection})
+            assert not result.is_error
+            current = unpack(result)
+            assert current['note_count'] == 2 and current['total_note_count'] == 3
+            output = tmp_path / 'ranges.ppsf'
+            changed = await client.call_tool('edit_ppsf_note_expression_range', {
+                'path': str(source), 'output_path': str(output), 'expected_sha256': current['sha256'],
+                'selection': selection, 'settings': {'style': {'accent': 82}}})
+            assert not changed.is_error and output.exists()
+            assert len(unpack(changed)['notes']) == 2
+            assert (await client.call_tool('edit_ppsf_note_expression_range', {
+                'path': str(source), 'output_path': str(tmp_path / 'refused.ppsf'), 'expected_sha256': current['sha256'],
+                'selection': {'note_ids': ['e0']}, 'settings': {'style': {'accent': 82}}})).is_error
+            assert not (tmp_path / 'refused.ppsf').exists()
     asyncio.run(scenario())

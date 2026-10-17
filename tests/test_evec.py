@@ -56,7 +56,8 @@ def test_evec_readback_rejects_unrequested_style_changes(fixtures):
 
 
 @pytest.mark.parametrize('caption_visible', [True, False])
-def test_palette_frame_does_not_mistake_a_vibrato_wave_for_its_top(tmp_path, monkeypatch, caption_visible):
+@pytest.mark.parametrize('release_label', ['R 引 巳 a 3 巳', 'VO R 巳 《 巳 3 巳'])
+def test_palette_frame_does_not_mistake_a_vibrato_wave_for_its_top(tmp_path, monkeypatch, caption_visible, release_label):
     width, height = 600, 650
     data = bytearray(width * height * 3)
     for y in range(100, 124):
@@ -79,7 +80,7 @@ def test_palette_frame_does_not_mistake_a_vibrato_wave_for_its_top(tmp_path, mon
         return {'rows': [
             {'text': '音符设置 选中数量 3', 'box': [160, 10, 580, 32]},
             {'text': 'Col or', 'box': [270, 536, 336, 554]},
-            {'text': 'R 引 巳 a 3 巳', 'box': [538, 536, 632, 554]}]}
+            {'text': release_label, 'box': [538, 536, 632, 554]}]}
     monkeypatch.setattr(piapro_evec.native_visual, 'capture', capture)
     monkeypatch.setattr(piapro_evec.native_visual, 'recognize', recognize)
     frame = piapro_evec._palette({}, tmp_path, 3, 0)

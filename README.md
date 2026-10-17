@@ -1,6 +1,6 @@
 # Cubase Piapro MCP
 
-本地运行、优先直接处理工程数据的 MCP。当前版本 0.4.0，共 31 个工具；适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
+本地运行、优先直接处理工程数据的 MCP。当前源码 0.5.0，共 33 个工具；生产安装仍为已验收的 0.4.0，0.5 多区段原生范围已实测，正式工作轨界面后备尚待解锁桌面后的完整验收。适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
 
 ## 功能
 
@@ -11,7 +11,7 @@
 - Piapro：动态发现 Windows 窗口、菜单与标准文件对话框，用原生激活通知和窗口消息导入、导出，无须前台切换或鼠标输入。WAV 为当前选中 Piapro 音轨。
 - 歌手/音色：读取本机安装元数据及实际导出的原生歌手定义，直接修改 PPSF 歌手表与两份 Program Change；现场切换先快照，再导入及完整乐谱回读，失败恢复并再次回读。本机六种 Miku 音色的原生赋值与回读均已实测。
 - 表情与颤音：直接读写旧版 PPSF 的弯音深度/长度、衰减、重音、开口度、力度及上下行滑音；支持 Normal/Type1 颤音长度、深度和速度包络。按逻辑音符关联主音、EVEC 元音与尾音，现场修改保留快照并完整回读。
-- Miku EVEC：发音扩展 none/mild/strong、辅音重复，以及已有 Soft/Power、Short/Long 编译链的切换直接改数据。首次生成或停用颜色/尾音使用明确启用的受限设置界面，适用于当前打开钢琴卷帘中的整个区段、活动单区段轨；会补回宿主设置面板意外覆盖的表情、颤音和发音参数，再次导入并核验。
+- Miku EVEC：发音扩展 none/mild/strong、辅音重复，以及已有 Soft/Power、Short/Long 编译链的切换直接改数据；支持显式逻辑 ID 与多区段音符范围。首次生成或停用颜色/尾音的工作轨后备实现正在验收，详见验证记录；原整区段接口保留。
 - Cubase：通过 MIDI Remote 回读宿主 UID、轨道类型、名称、乐器和选中状态，按 UID 选择音轨；支持播放、停止、录音及选中通道的音量、声像、静音、独奏。成功需要宿主反馈。
 - 工程与音轨：从本机预置 Piapro 的独立 CPR 模板创建新工程；添加音频、MIDI 或首个 Piapro 乐器轨；复用、选择并打开已有 Piapro。音频轨使用原生控件消息；MIDI/Piapro 的自绘选择器需要显式启用受限的对话框相对指针消息后备。
 - MIDI 路由：读取、修改 MIDI 轨的输入和输出，以及乐器轨的 MIDI 输入。官方 MIDI Remote 没有相应路由属性，使用经过布局核验的 Routing 检视器后备；Windows 本机 OCR、菜单选中项、检视器文本及目标乐器宿主反馈共同核验结果，保留恢复检查点。
@@ -92,7 +92,24 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 
 `changes` 中的 `style` 支持 `bend_depth`、`bend_length`、`decay`、`accent`、`opening`、`velocity`、`rise_portamento`、`fall_portamento`。`vibrato` 支持 `length_percent`、`depth_curve`、`rate_curve`，曲线点为 `{position, value}`，从起点零开始且位置严格递增。原生曲线使用有限分辨率；区段边界附近的控制点会归并，实际结果以回读为准。
 
-`evec_pronunciation` 和 `evec_consonant_repeat` 适用于已验证的 Miku V4X EVEC 日语元音，以及实机捕获的 `k`/`4` 子音加元音；其他子音、复杂或自定义音素暂拒绝扩展写入，原有表情和颤音仍可编辑。已存在的颜色/尾音用 `evec_color`、`evec_release` 逐音符切换。首次颜色/尾音生成调用 `piapro_set_part_evec(..., allow_dialog_fallback=true)`，并先打开目标区段。该后备需要 Piapro Standard 2.0.5 中文设置布局；整区段应用，不支持任意视图、任意选区或多区段轨。未指定的颜色/尾音原本混合时拒绝批量后备，防止宿主统一覆盖。
+`evec_pronunciation` 和 `evec_consonant_repeat` 支持实机捕获的五个日语元音、鼻音 `N\`，以及以下子音加五元音的组合：`k k' g g' s S ts tS t t' d d' dz dZ n J h C p\ p p' b b' m m' j 4 4' w`。复杂、自定义或未捕获音素仍拒绝扩展写入，表情和颤音可独立编辑。已存在的颜色/尾音用 `evec_color`、`evec_release` 原生切换。
+
+范围操作使用 `edit_ppsf_note_expression_range`（文件）或 `piapro_set_note_expression_range`（现场），传入统一 `settings`，并二选一提供 `selection.note_ids` 或 `selection.ranges`。例如：
+
+```json
+{
+  "selection": {"ranges": [
+    {"track_index": 2, "part_index": 0, "start_note_index": 1, "end_note_index": 4},
+    {"track_index": 2, "part_index": 1, "start_note_index": 0, "end_note_index": 2}
+  ]},
+  "settings": {"evec_pronunciation": "strong", "evec_consonant_repeat": 2,
+    "style": {"accent": 75}, "vibrato": {"length_percent": 60}}
+}
+```
+
+索引从零开始，终点不包含；省略终点表示该区段末尾，重叠范围只处理一次。文件调用另传路径与来源 `expected_sha256`，现场调用另传全曲 `expected_revision`。读取工具也可传同一 `selection`，筛选不缩小 revision 的保护范围。每次最多 4096 个逻辑音符、256 个范围。
+
+新范围接口首次启用或停用颜色/尾音需显式 `allow_dialog_fallback=true`。实现使用同一 Piapro 插件内的临时工作轨生成，再将选中音符的实际编译链合并回原数据，保留其余音乐；按歌手、颜色/尾音及发音分组，最多 16 组。该路径尚待正式实机验收，不能仅以本地解析或单独合并试验通过宣称完成。要求已解锁的 Windows Default 桌面、足够大的 Piapro 窗口及已验证的中文设置布局；屏保/锁屏会在导入临时轨前拒绝。旧 `piapro_set_part_evec` 仍要求当前打开的钢琴卷帘、活动单区段轨和整个区段，不保留未请求的混合颜色/尾音。
 
 ## 限制
 
@@ -114,6 +131,6 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 .venv/Scripts/python.exe -m pytest -q
 ```
 
-测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料，EVEC/表情样本通过 `CP_TEST_EXPRESSIONS` 指向本机自制 A/B 目录；两者均不随项目分发。
+测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料，EVEC/表情样本通过 `CP_TEST_EXPRESSIONS`，范围与扩展音素样本通过 `CP_TEST_EVEC_SELECTION` 指向本机自制 A/B 目录；乐曲、音频及恢复点不随项目分发。
 
-31 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，查询边界修复见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+33 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，查询边界修复见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

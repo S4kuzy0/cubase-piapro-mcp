@@ -17,7 +17,7 @@ Codex 通过本机 stdio 启动官方 Python MCP SDK 服务。文件处理不需
 | 歌手 | 实际 PPSF SingerEntry、双 Program Change 定点写入 | 仅已捕获定义与静态布局；快照、导入、完整回读及失败恢复 |
 | MIDI 路由 | Win32 窗口消息、Windows.Media.Ocr、菜单与检视器回读 | Cubase 14 英文受限布局；乐器轨只读写 MIDI 输入 |
 | 音符表情/颤音 | PPSF 逻辑主音与派生事件定点修改 | 八项风格；Normal/Type1 长度、深度与速度包络 |
-| Miku EVEC | 原生发音扩展/辅音重复及已编译颜色/尾音切换；首次生成用宿主设置面板 | 当前已打开钢琴卷帘、活动单区段轨的整个区段；显式启用界面后备 |
+| Miku EVEC | 原生发音扩展/辅音重复及已编译颜色/尾音切换，显式 ID 或多个区段的音符范围 | 新工作轨首次生成后备待实机验收；旧整区段后备保留 |
 
 PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映射与原始时序一致时同步两处；其他插件及未知块保持原内容。原生时序操作不延长区段原有音符终点，扩展使用 VSQX。
 
@@ -55,6 +55,8 @@ PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映�
 | `piapro_read_note_expression` | 原生 PPSF 文件或现场快照的逻辑音符、风格、颤音、EVEC 分页读取 |
 | `edit_ppsf_note_expression` | 按来源 SHA-256 写入 PPSF 表情/颤音/已验证 EVEC，不更新现场 |
 | `piapro_set_note_expression` | 按最新现场 revision 原生修改，导入、完整回读及失败恢复 |
+| `edit_ppsf_note_expression_range` | 文件中按显式 ID 或多区段半开索引范围统一调教，来源 SHA 保护 |
+| `piapro_set_note_expression_range` | 现场多范围原生调教；可选临时工作轨 EVEC 编译（端到端验收待完成） |
 | `piapro_set_part_evec` | 首次生成/停用整区段 EVEC 颜色或尾音，受限界面加原生修复与核验 |
 
 ## 写入与回读约定
@@ -83,9 +85,15 @@ VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在�
 
 Native EVEC 修改保留原始音节，同步更新 CVV/VSil/CTop 与编译音素，首次发音扩展的字符串长度差同步各级容器。已有 Soft/Power 和 Short/Long 只更换经实机确认的枚举及对应音素；颜色/尾音首次生成或停用由宿主编译，不猜测派生时序。启用 EVEC 的目标禁止旧物理音符写入及不同歌手赋值，避免部分链失配。
 
-发音扩展仅接受日语元音及已捕获的 `k`/`4` 子音加元音，不能仅凭形似简单 CV 就给未经验证的子音拼接 EVEC 编码。其他子音或复杂音素先返回明确错误，不进入宿主导入。表情和颤音不要求改变原始音素。
+发音扩展接受实机捕获的五个日语元音、鼻音 `N\` 及 29 子音加五元音，完整白名单由 `get_capabilities.miku_pronunciation_inventory` 返回。35 个原生样本在 Mild/Strong 与四种重复组合的 280 对实际编译记录全部吻合。未捕获或复杂自定义音素先拒绝，不能仅凭形似简单 CV 拼接 EVEC 编码。表情和颤音不要求改变原始音素。
 
 `piapro_evec.py` 要求 Piapro 2.0.5 中文设置布局、当前已打开的钢琴卷帘、活动轨恰好一个区段。用动态菜单打开设置，以实际标题、框体、放大本机 OCR 读出的音符数及选中标记授权窗口相对消息。范围始终为整个当前区段，未请求的混合颜色/尾音拒绝统一覆盖。界面会覆盖混合表情和重塑颤音，因此先保存原数据、让宿主生成 EVEC，再原生补回原风格、颤音及未请求的发音参数；最终重新导入、导出，严格检查原生结果及所有无关音乐、自动化和编辑元数据。错误路径取消已确认浮层或导入快照，恢复后必须再次读取核验。
+
+`note_selection.py` 解析显式逻辑 ID 或多个区段的零基半开音符索引范围，按原乐谱顺序去重，拒绝不存在、空或歧义目标；省略范围终点表示该区段末尾。读取可筛选，但 revision 始终覆盖整个原生乐曲。`expression_ranges.py` 把统一设置展开成原生写入，已经编译的颜色/尾音不触碰界面。需要首次生成/停用时，先验证引用布局、音素、歌手和 profile，再要求显式后备及未锁屏的 Windows Default 桌面。
+
+`evec_work.py` 的新后备尚待解锁桌面后的正式端到端验收：按歌手、目标颜色/尾音、原发音与重复分组，用实际导出的 VSQX 声库表创建单区段临时内部工作轨。核验新轨身份、歌手、活动状态、所有音符和原始音素，原生菜单打开钢琴卷帘；`evec_focus.py` 在重复琴键列右侧检测临时音符正文，只给已核验工作轨发送受限焦点消息，再要求设置标题实际数量、两列标签及选中标记。锁屏时原生数据可继续工作，但自绘界面截图可能停在旧画面，必须在导入任何工作轨前拒绝。
+
+`evec_patch.py` 从原快照开始合并宿主实际生成的目标编译链；保留原主音数据、原 ENOT 及风格/颤音，修复所有 Vocaloid3 Clip 全局事件引用、ENOT 三槽局部引用和 AutomationClip 引用。未知音频/MIDI/VSQ2 引用布局或目标音符共享自动化引用拒绝合并。每层容器按正文长度差增减 size，保留原生尾字节；仅本地字节往返无法证明宿主接受。三散选音符首次 Soft/Long 合并已实际导入并完整回读，正式工作轨事务尚未完成。最终原数据不含工作轨；失败只取消已核验面板，或关闭唯一且明确点名本次阶段文件的已知文件错误，再导入原快照、再次导出严格核验。
 
 现场 expression revision 覆盖所有非编辑块和逻辑 ENOT 元数据，忽略选择标记；与歌手 revision 不互换。文件写入仍要求完整字节往返、来源 SHA-256 和覆盖备份，现场写入要求停止走带及跨进程锁。生成 EVEC 会重排物理事件，比较时需解析索引，但不能忽略未请求的音符、全局块、剪辑或自动化变化。
 
@@ -128,6 +136,10 @@ Native EVEC 修改保留原始音节，同步更新 CVV/VSil/CTop 与编译音�
 | `ROUTING_CHANGE_INCOMPLETE` | 查看检查点及双向恢复回读，未通过时不得盲目重试 |
 | `UNSUPPORTED_ROUTING_LAYOUT` | 展开 Routing 并使用已验证的英文 Cubase 14 布局；其他布局拒绝 |
 | `EVEC_UI_REQUIRED` | 首次颜色/尾音生成或停用使用受限后备；已编译切换可原生修改 |
+| `INVALID_NOTE_SELECTION` / `INVALID_NOTE_RANGE` | 从最新逻辑音符清单选择显式 ID 或正确的半开区段范围 |
+| `INTERACTIVE_DESKTOP_REQUIRED` | 退出屏保、解锁 Windows 后重试界面后备；原生文件/范围功能不受影响 |
+| `EVEC_REMAP_LAYOUT_UNSUPPORTED` | 存在未验证引用布局，拒绝首次 EVEC 合并；可继续独立原生调教 |
+| `EXPRESSION_RANGE_INCOMPLETE` | 根据快照及实际恢复状态检查现场，未核验时不继续修改 |
 | `PIAPRO_PART_VIEW_REQUIRED` | 打开所请求单区段活动轨的钢琴卷帘，不能使用概览或猜测坐标 |
 | `EXPRESSION_LAYOUT_UNSUPPORTED` / `VIBRATO_PROFILE_UNSUPPORTED` | 未知关联或颤音预设，停止原生写入 |
 | `EXPRESSION_CHANGE_INCOMPLETE` / `EVEC_CHANGE_INCOMPLETE` | 查看快照及真实恢复状态；未核验恢复时先检查现场 |

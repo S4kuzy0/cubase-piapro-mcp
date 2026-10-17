@@ -117,7 +117,7 @@ def _palette(root, folder, count, sequence, recovery_frame=None):
                     if 240 * scale < row['box'][1] / 2 < 287 * scale and row['box'][0] / 2 > 210 * scale]
     # Exact local OCR aliases for the two static column headings only.
     if not any('color' in label for label in left_labels) or not any(
-            'release' in label or label == 'r引巳a3巳' for label in right_labels):
+            'release' in label or label in {'r引巳a3巳', 'vor巳巳3巳'} for label in right_labels):
         raise IntegrationError('EVEC_UI_UNSUPPORTED', 'Both EVEC column labels must be read before content input.')
     return frame
 

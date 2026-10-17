@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from pathlib import Path
 
 from . import ppsf, singers
@@ -25,6 +26,13 @@ RELEASE_CODES = {201: 'short', 202: 'long'}
 PRONUNCIATION_CODES = {302: 'mild', 306: 'strong'}
 MIKU_EVEC_VOICES = {'MIKU_V4X_Original_EVEC', 'MIKU_V4X_Soft_EVEC', 'MIKU_V4X_Solid_EVEC'}
 SENTINEL = 0xFFFFFFFF
+PRONUNCIATION_CONSONANTS = {
+    'k', "k'", 'g', "g'", 's', 'S', 'ts', 'tS', 't', "t'", 'd', "d'",
+    'dz', 'dZ', 'n', 'J', 'h', 'C', 'p\\', 'p', "p'", 'b', "b'", 'm', "m'",
+    'j', '4', "4'", 'w',
+}
+PRONUNCIATION_VOWELS = {'a', 'i', 'M', 'e', 'o'}
+PRONUNCIATION_SINGLE_PHONEMES = PRONUNCIATION_VOWELS | {'N\\'}
 
 
 def plain(value):
@@ -155,9 +163,19 @@ def note_record(entry):
 
 def inspect_native(data):
     project, chunks = ppsf.load(data)
+    entries = native_entries(project, chunks)
+    counts = Counter((e['track_index'], e['part_index']) for e in entries)
+    clips = {c.index: c for c in chunks['Clips'].data.vocaloid3_note_clips}
+    parts = []
+    for ti, track in enumerate(chunks['Tracks'].data.vocaloid3_event_tracks.data):
+        for pi, clip_id in enumerate(track.data.clip_indices):
+            clip = clips[clip_id].data.noteclip
+            parts.append({'id': f't{ti}:p{pi}', 'track_index': ti, 'part_index': pi,
+                          'track_name': track.data.name, 'part_name': clip.iclip.name,
+                          'part_start_tick': clip.offset, 'note_count': counts[(ti, pi)]})
     return {'format': 'ppsf-legacy', 'binary_roundtrip_identical': ppsf.model.PpsfLegacyProject.build(project) == data,
             'note_id_scope': 'logical editor notes t#:p#:n#; not physical e# events',
-            'notes': [note_record(e) for e in native_entries(project, chunks)]}
+            'parts': parts, 'notes': [note_record(e) for e in entries]}
 
 
 def validate_changes(changes):
@@ -289,11 +307,10 @@ def _set_pronunciation(chunks, entry, change):
         raise IntegrationError('EVEC_LAYOUT_UNSUPPORTED', 'Pronunciation uses an uncaptured native EVEC settings bank.')
     phoneme = syllables[0][2]
     tokens = phoneme.split()
-    vowels = {'a', 'i', 'M', 'e', 'o', 'N'}
     if (len(tokens) not in (1, 2) or any('#' in token for token in tokens)
-            or (len(tokens) == 1 and tokens[0] not in vowels)
-            or (len(tokens) == 2 and (tokens[0] not in {'k', '4'} or tokens[1] not in vowels))):
-        raise IntegrationError('EVEC_PHONEME_UNSUPPORTED', 'Native pronunciation supports Japanese vowels and the host-captured k/4 consonant-vowel patterns. Other/custom/complex phonemes are preserved until separately verified.')
+            or (len(tokens) == 1 and tokens[0] not in PRONUNCIATION_SINGLE_PHONEMES)
+            or (len(tokens) == 2 and (tokens[0] not in PRONUNCIATION_CONSONANTS or tokens[1] not in PRONUNCIATION_VOWELS))):
+        raise IntegrationError('EVEC_PHONEME_UNSUPPORTED', 'Use the verified Japanese consonant/vowel inventory. Uncaptured, custom and compound phonemes are preserved until separately verified.')
     old_length = len(ppsf.model.PpsfVocaloidEVECData.build(node.data))
     node.data.unknown_int = SENTINEL if mode == 'none' else (302 if mode == 'mild' else 306)
     node.data.voicebank_name = '' if mode == 'none' else 'MIKU_V4X_Original_EVEC'
