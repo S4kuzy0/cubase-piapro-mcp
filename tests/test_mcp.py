@@ -67,11 +67,16 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
                     "path": str(source),
                     "output_path": str(target),
                     "expected_sha256": info["sha256"],
-                    "changes": [{"id": info["notes"][0]["id"], "note_num": 72}],
+                    "changes": [{"id": info["notes"][0]["id"], "note_num": 72,
+                                 "lyric": "あ", "phoneme": "a"}],
                 },
             )
             assert not edited.is_error
             assert target.exists()
+            readback = unpack(await client.call_tool(
+                "inspect_project", {"path": str(target), "include_notes": True}))
+            assert readback["notes"][0]["lyric"] == "あ"
+            assert readback["notes"][0]["phoneme"] == "a"
             bad = await client.call_tool(
                 "edit_notes",
                 {
@@ -94,6 +99,28 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
             assert refused.is_error
             assert "DIALOG_FALLBACK_REQUIRED" in str(refused)
 
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("preview", [False, True])
+def test_host_extension_discovery_requires_explicit_preview(tmp_path, preview):
+    async def scenario():
+        env = dict(os.environ, PYTHONUTF8="1",
+                   CUBASE_PIAPRO_STATE_DIR=str(tmp_path / "state"),
+                   CUBASE_PIAPRO_HOST_CONTROLS_PREVIEW="1" if preview else "0")
+        params = StdioServerParameters(
+            command=sys.executable, args=[str(ROOT / "run_server.py")], env=env)
+        async with Client(params, mode="auto") as client:
+            tools = (await client.list_tools()).tools
+            names = {tool.name for tool in tools}
+            extension = {"cubase_get_interfaces", "cubase_list_plugins", "cubase_get_controls",
+                         "cubase_set_controls", "cubase_load_plugin"}
+            assert names & extension == (extension if preview else set())
+            assert len(names) == (38 if preview else 33)
+            if preview:
+                schema = next(tool.input_schema for tool in tools if tool.name == "cubase_set_controls")
+                fields = schema["$defs"]["HostControlChange"]["properties"]
+                assert set(fields) == {"id", "value"}
     asyncio.run(scenario())
 
 

@@ -188,7 +188,7 @@ class AddTrackDialog:
         gui.PostMessage(button["handle"], 0xF5, 0, 0)
 
 
-def _new_track(before, after, name, kind):
+def _new_track(before, after, name, kind, plugin_name=None):
     old = {track["id"]: track for track in before["tracks"]}
     current = {track["id"]: track for track in after["tracks"]}
     if not old.keys() <= current.keys() or any(
@@ -208,18 +208,23 @@ def _new_track(before, after, name, kind):
         raise IntegrationError("UNVERIFIED_TRACK_ADDITION", "The new host channel is not a MIDI track.")
     if kind == "piapro" and track.get("kind") != "instrument":
         raise IntegrationError("PIAPRO_NOT_LOADED", "The Piapro plugin is not owned by a new instrument track.")
+    if kind == "instrument" and (track.get("kind") != "instrument" or track.get("plugin") != plugin_name):
+        raise IntegrationError("PLUGIN_NOT_LOADED", "The new instrument track does not report the exact requested plugin name.")
     if kind == "audio" and (track["plugin"] or track.get("kind") != "audio_or_sampler"):
         raise IntegrationError("UNVERIFIED_TRACK_ADDITION", "An unexpected instrument appeared on a non-instrument addition.")
     return track
 
 
 def add_track(kind: str, name: str, expected_revision: str,
-              allow_dialog_fallback: bool = False):
-    if kind not in ("audio", "midi", "piapro"):
+              allow_dialog_fallback: bool = False, *, plugin_name: str | None = None):
+    if kind not in ("audio", "midi", "piapro", "instrument"):
         raise IntegrationError("UNSUPPORTED_TRACK_TYPE", "Supported types are audio, midi, and piapro.")
     if not isinstance(name, str) or not name.strip() or len(name) > 80 or any(ord(c) < 32 for c in name):
         raise IntegrationError("INVALID_TRACK_NAME", "Use a nonempty track name up to 80 characters, without control characters.")
-    if kind in ("midi", "piapro") and not allow_dialog_fallback:
+    if kind == "instrument" and (not isinstance(plugin_name, str) or not plugin_name.strip()
+                                 or len(plugin_name) > 128 or any(ord(c) < 32 for c in plugin_name)):
+        raise IntegrationError("INVALID_PLUGIN_NAME", "An exact plugin name from the local cache is required.")
+    if kind in ("midi", "piapro", "instrument") and not allow_dialog_fallback:
         raise IntegrationError("DIALOG_FALLBACK_REQUIRED", "This Cubase version needs bounded dialog-relative pointer messages for instrument/input selectors. Set allow_dialog_fallback=true, or create a preloaded project from a template.")
     with file_lock(state_dir() / "live-daw"):
         root = project_root()
@@ -229,21 +234,34 @@ def add_track(kind: str, name: str, expected_revision: str,
             raise IntegrationError("TRACK_LIST_CHANGED", "List live tracks again before adding a track.")
         if before["overflow"] or len(before["tracks"]) >= 64:
             raise IntegrationError("TRACK_CAPACITY_EXCEEDED", "This adapter verifies at most the first 64 supported mixer tracks.")
-        if kind == "piapro" and any("piapro" in track["plugin"].lower() for track in before["tracks"]):
+        if (kind == "piapro" or (kind == "instrument" and "piapro" in plugin_name.lower())) and any("piapro" in track["plugin"].lower() for track in before["tracks"]):
             raise IntegrationError("PIAPRO_ALREADY_LOADED", "Piapro permits only one instance per computer (E10). Use cubase_load_piapro to select/open the existing instance.")
         if any(not track.get("uid") or track.get("kind") == "unknown" for track in before["tracks"]):
             raise IntegrationError("TRACK_ID_PENDING", "Existing host identities are not ready. Read the live inventory again before adding a track.")
         checkpoint = _checkpoint(root, before, "add_" + kind)
+        dialog = None
+        submitted = False
         try:
             live_midi.command("add_" + kind)
             dialog = AddTrackDialog(_wait_dialog(root["pid"], "Add Track"))
-            if kind in ("midi", "piapro"):
+            if kind in ("midi", "piapro", "instrument"):
                 dialog.prepare_fallback()
-                if kind == "piapro":
-                    dialog.choose(3, "Piapro Studio VSTi")
-                dialog.choose(2 if kind == "piapro" else 3, "Not Connected")
-            dialog.set_count_and_name(name, kind in ("midi", "piapro"))
+                if kind in ("piapro", "instrument"):
+                    if kind == "instrument":
+                        from . import plugin_ui
+                        folder = Path(checkpoint).with_suffix(".plugin-selector")
+                        folder.mkdir(exist_ok=False)
+                        def refresh_selector():
+                            current = live_midi.list_tracks()
+                            if current["revision"] != before["revision"]:
+                                raise IntegrationError("TRACK_LIST_CHANGED", "Host tracks changed while selecting the new plugin.")
+                        plugin_ui.add_track_plugin(dialog, plugin_name, folder, refresh_selector)
+                    else:
+                        dialog.choose(3, "Piapro Studio VSTi")
+                dialog.choose(2 if kind in ("piapro", "instrument") else 3, "Not Connected")
+            dialog.set_count_and_name(name, kind in ("midi", "piapro", "instrument"))
             dialog.submit()
+            submitted = True
             deadline = time.monotonic() + 25
             while time.monotonic() < deadline:
                 pending = windows.dialogs(root["pid"])
@@ -264,9 +282,9 @@ def add_track(kind: str, name: str, expected_revision: str,
                     time.sleep(.1)
                     continue
                 try:
-                    added = _new_track(before, after, name, kind)
+                    added = _new_track(before, after, name, kind, plugin_name)
                 except IntegrationError as exc:
-                    if exc.code not in ("UNVERIFIED_TRACK_ADDITION", "PIAPRO_NOT_LOADED"):
+                    if exc.code not in ("UNVERIFIED_TRACK_ADDITION", "PIAPRO_NOT_LOADED", "PLUGIN_NOT_LOADED"):
                         raise
                     time.sleep(.1)
                     continue
@@ -279,7 +297,17 @@ def add_track(kind: str, name: str, expected_revision: str,
                                        "host_routing_readback": False}}
             raise IntegrationError("TRACK_ADDITION_PENDING", "The native operation did not settle before timeout.")
         except Exception as exc:
-            raise IntegrationError("TRACK_OPERATION_INCOMPLETE", f"{exc}; additive-operation checkpoint: {checkpoint}. Inspect live state before retrying.") from exc
+            cancelled = False
+            if dialog is not None and not submitted:
+                try:
+                    _, gui, _ = windows.api()
+                    handle = dialog.root["handle"]
+                    if gui.IsWindow(handle) and gui.IsWindowVisible(handle) and gui.GetWindowText(handle) == "Add Track":
+                        gui.SendMessage(_button(handle, "Cancel")["handle"], 0xF5, 0, 0)
+                        cancelled = True
+                except Exception:
+                    pass
+            raise IntegrationError("TRACK_OPERATION_INCOMPLETE", f"{exc}; additive-operation checkpoint: {checkpoint}; unsubmitted dialog cancelled: {cancelled}. Inspect live state before retrying.") from exc
 
 
 def load_piapro(expected_revision: str, track_name="Piapro", allow_dialog_fallback=False):

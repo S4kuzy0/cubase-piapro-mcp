@@ -1,5 +1,7 @@
 # 工具与架构
 
+本页工具清单为已发布的 0.5 范围。未验收的五个宿主控制开发工具默认关闭，关闭阶段新崩溃尚未修复，见 [开发状态](host-controls-development.md)。
+
 ## 数据通路
 
 Codex 通过本机 stdio 启动官方 Python MCP SDK 服务。文件处理不需要打开软件；现场操作通过 Piapro 原生菜单和专用 MIDI Remote 端口完成，没有网络音频服务、数据库或付费 API。

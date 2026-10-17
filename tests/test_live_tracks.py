@@ -44,6 +44,16 @@ def test_revision_ignores_selection_but_rejects_track_reorder():
         live_midi.requested_track(reordered, "uid:a", first["revision"])
 
 
+def test_cached_generation_rejects_reused_host_uid_with_same_visible_metadata():
+    original = snapshot() | {"generation": 10}
+    before = live_midi.decode_inventory(*frames_for(original))
+    original["generation"] = 12
+    recreated = live_midi.decode_inventory(*frames_for(original))
+    assert recreated["revision"] != before["revision"]
+    with pytest.raises(IntegrationError, match="TRACK_LIST_CHANGED"):
+        live_midi.requested_track(recreated, "uid:a", before["revision"])
+
+
 def test_incomplete_corrupt_or_ambiguous_host_feedback_is_rejected():
     frames, total = frames_for(snapshot())
     with pytest.raises(IntegrationError, match="INVALID_TRACK_FEEDBACK"):

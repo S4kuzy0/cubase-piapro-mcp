@@ -118,4 +118,18 @@ emit(page.mOnDeactivate);
 project([{...midi,uid:'midi-new-project'}]);
 assert.equal(snapshot().tracks[0].uid,'midi-new-project');
 for (let i=0;i<100;i++) snapshot();
+// Real Cubase reused a channel UID after removing/readding an instrument.
+// Empty/refill callbacks must invalidate an old revision even if names match.
+const priorLife=snapshot();
+const recreated={...midi,uid:'midi-new-project'};
+for(const zone of zones) zone.hosts.forEach(h=>assign(h,null));
+assign(selected,null);
+for(const zone of zones) {
+    const filtered=[recreated].filter(t=>zone.kinds.includes(t.kind));
+    zone.hosts.forEach((h,i)=>assign(h,filtered[i]));
+}
+assign(selected,recreated);
+const nextLife=snapshot();
+assert.deepEqual(nextLife.tracks,priorLife.tracks);
+assert.ok(nextLife.generation>priorLife.generation,'An identical-looking recreated channel is a new cached lifetime');
 console.log('Host-boundary lifecycle contract passed');

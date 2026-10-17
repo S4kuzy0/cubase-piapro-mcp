@@ -10,7 +10,7 @@ from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict
 
-from . import __version__, projects, storage, live_midi, windows, cubase, project_templates, singers, routing, expressions, piapro_evec, expression_ranges, note_selection
+from . import __version__, projects, storage, live_midi, windows, cubase, project_templates, singers, routing, expressions, piapro_evec, expression_ranges, note_selection, host_controls, plugin_catalog, plugin_loading, interfaces
 
 mcp = MCPServer(
     "cubase-piapro",
@@ -28,6 +28,8 @@ mcp = MCPServer(
         "Native note expression IDs are logical t#:p#:n# associations, distinct from physical PPSF e# IDs and Cubase UIDs. "
         "Prefer native expression writes. Range tools use explicit logical IDs or half-open part note-index ranges. "
         "First EVEC enable/disable uses explicitly opted-in temporary internal work tracks, merged and removed before full readback. "
+        "Host EQ/send/plugin controls require fresh track and control revisions. Values are normalized, with actual host display text returned. "
+        "Program parameters are read-only; plugin loading only adds a new instrument or uses a proven empty insert, never replaces an occupied slot. "
         "Do not claim success when verified/connected is false or an error is returned."
     ),
 )
@@ -39,6 +41,12 @@ WRITE = ToolAnnotations(
 )
 
 
+def _preview_host_tool(annotations):
+    # Keep the registered 0.5 tool surface until this host extension passes its
+    # own copy-based acceptance. Test clients explicitly opt into the preview.
+    return mcp.tool(annotations=annotations) if os.environ.get("CUBASE_PIAPRO_HOST_CONTROLS_PREVIEW") == "1" else lambda function: function
+
+
 class NoteChange(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
@@ -48,6 +56,12 @@ class NoteChange(BaseModel):
     velocity: int | None = None
     lyric: str | None = None
     phoneme: str | None = None
+
+
+class HostControlChange(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    id: str
+    value: float
 
 
 class CurvePoint(BaseModel):
@@ -454,6 +468,43 @@ def cubase_set_midi_routing(track_id: str, expected_revision: str, expected_rout
 def cubase_control(action: str, value: float | None = None) -> dict:
     """Control play/stop/record or selected channel volume/pan/mute/solo via MIDI Remote. Success requires host feedback. Record starts recording."""
     return live_midi.control(action, value)
+
+
+@_preview_host_tool(READ)
+def cubase_get_interfaces() -> dict:
+    """Inspect this machine's actual Cubase executable version/API declarations and, when connected, controls-1 cached host metadata. Declared methods are separate from runtime verification. Does not activate DirectAccess, traverse native objects or load plugins."""
+    return interfaces.inspect_interfaces()
+
+
+@_preview_host_tool(READ)
+def cubase_list_plugins() -> dict:
+    """Read existing local Cubase scan/name caches, returning plugin IDs and a catalog revision. No DLL is loaded. Cached presence does not prove current availability/licensing; duplicate display names are not loadable through the fallback. No loaded class UID claim."""
+    return plugin_catalog.list_plugins()
+
+
+@_preview_host_tool(WRITE)
+def cubase_get_controls(track_id: str, expected_revision: str, group: str = "summary") -> dict:
+    """Select a fresh host UID and read cached standard MIDI Remote bindings. Groups: summary, eq, sends, instrument, insert.0 through insert.3. Four EQ bands; installed send slots up to eight; first 64 public parameters per supported plugin slot, with overflow reported. Values are normalized and include actual host display text. Send destination assignment is not provided. All Program selectors are read-only. Returns a control revision for writes; selecting a track may change the UI selection."""
+    return host_controls.get_controls(track_id, expected_revision, group)
+
+
+@_preview_host_tool(WRITE)
+def cubase_set_controls(track_id: str, expected_revision: str, expected_control_revision: str,
+                         group: str, changes: list[HostControlChange]) -> dict:
+    """Write one to sixteen explicit IDs from the latest cubase_get_controls read, using normalized values. Binary controls accept zero/one. Requires stopped transport and automation write off; no Program changes. Native standard bindings run on mapping idle with cached UID/session/revision checks. Requests are never automatically resent. Verifies all controls in the group and attempts reread-verified recovery on failure. Cubase stays unsaved."""
+    return host_controls.set_controls(track_id, expected_revision, expected_control_revision,
+                                      group, [item.model_dump() for item in changes])
+
+
+@_preview_host_tool(WRITE)
+def cubase_load_plugin(plugin_id: str, expected_catalog_revision: str, expected_revision: str,
+                        target: str, track_name: str | None = None, track_id: str | None = None,
+                        insert_slot: int | None = None, expected_control_revision: str | None = None,
+                        allow_dialog_fallback: bool = False) -> dict:
+    """Load a current cached plugin ID into new_instrument or insert. Cubase 14 lacks the newer native assignment manager, so explicit bounded UI opt-in is required. Inserts require fresh summary control revision, an audio/instrument host UID and the FIRST EMPTY slot zero through three; occupied slots are never replaced. New instruments use a unique cached name; Piapro reuses its sole instance. Actual host name/vendor/version/format verifies loading, not loaded class UID or sound/library activation. Unknown initialization questions are left for the operator and never acknowledged automatically. Verified recovery/checkpoints; no implicit CPR save."""
+    return plugin_loading.load_plugin(plugin_id, expected_catalog_revision, expected_revision, target,
+        track_name=track_name, track_id=track_id, insert_slot=insert_slot,
+        expected_control_revision=expected_control_revision, allow_dialog_fallback=allow_dialog_fallback)
 
 
 @mcp.tool(annotations=READ)

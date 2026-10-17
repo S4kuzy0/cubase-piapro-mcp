@@ -14,7 +14,7 @@ INPUT_NAME = "CP MCP From Cubase"
 OUTPUT_NAME = "CP MCP To Cubase"
 FIELDS = ("playing", "recording", "volume", "pan", "mute", "solo")
 TRACK_CAPACITY = 64
-COMMANDS = {"add_audio": 100, "add_piapro": 101, "add_midi": 102, "save": 104, "save_as": 105}
+COMMANDS = {"add_audio": 100, "add_piapro": 101, "add_instrument": 101, "add_midi": 102, "save": 104, "save_as": 105}
 
 
 def ports():
@@ -183,6 +183,7 @@ def decode_inventory(frames: dict[int, tuple[int, ...]], total: int) -> dict:
         or not result["session"]
         or result.get("capacity") != TRACK_CAPACITY
         or result.get("driver_build") != "host-cache-1"
+        or type(result.get("generation", 0)) is not int or result.get("generation", 0) < 0
         or not isinstance(result.get("overflow"), bool)
         or not isinstance(result.get("selected"), dict)
         or not isinstance(result.get("tracks"), list)
@@ -214,7 +215,7 @@ def decode_inventory(frames: dict[int, tuple[int, ...]], total: int) -> dict:
     if any(not isinstance(selected.get(key), str) for key in ("name", "uid", "plugin")):
         raise IntegrationError("INVALID_TRACK_FEEDBACK", "Invalid selected-track metadata.")
     result["revision"] = digest(json.dumps(
-        {"session": result["session"], "tracks": identity},
+        {"session": result["session"], "generation": result.get("generation", 0), "tracks": identity},
         ensure_ascii=False, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8"))
     result["scope"] = "first 64 audio/instrument/sampler/MIDI mixer channels; hidden channels included"
