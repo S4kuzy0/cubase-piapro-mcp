@@ -126,6 +126,9 @@ def assign_native(data, track_index, singer_bytes):
     entries = chunks["Project"].data.impl.vocaloid3_singers
     if not 0 <= old_index < len(entries):
         raise IntegrationError("SINGER_LAYOUT_UNSUPPORTED", "The current native singer index is invalid.")
+    if (ppsf.active_evec_events(chunks, track_index)
+            and ppsf.model.PpsfProjectV3SingerEntry.build(entries[old_index]) != singer_bytes):
+        raise IntegrationError('EVEC_SINGER_CHANGE_UNSUPPORTED', 'Disable EVEC on this track before changing its singer; compiled EVEC chains are voicebank-specific.')
     target = next((index for index, value in enumerate(entries)
                    if ppsf.model.PpsfProjectV3SingerEntry.build(value) == singer_bytes), None)
     if target is None:

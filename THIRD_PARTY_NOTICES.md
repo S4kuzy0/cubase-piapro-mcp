@@ -6,7 +6,7 @@ Source: https://github.com/SoulMelody/LibreSVIP
 
 Pinned commit: `98d2e5cd84eb139bb611b8c9159d996962c5d1c9`.
 
-`libresvip/plugins/ppsf/legacy_model.py` is vendored as `_vendor/libresvip_legacy/model.py` without functional modifications. MIT license and copyright notice are included beside it. Only the binary schema is reused; the general lossy Project conversion pipeline and the upstream MCP server are not included.
+`libresvip/plugins/ppsf/legacy_model.py` is vendored as `_vendor/libresvip_legacy/model.py`. MIT license and copyright notice are included beside it. Two local schema corrections are applied after native Piapro A/B verification: active EVEC stores a length-prefixed voicebank name rather than a byte flag; vibrato breakpoints store a 16-bit value followed by a 32-bit position. Original upstream hashes remain in the provenance manifest. Only the binary schema is reused; the general lossy Project conversion pipeline and the upstream MCP server are not included.
 
 ## CubaseTools
 

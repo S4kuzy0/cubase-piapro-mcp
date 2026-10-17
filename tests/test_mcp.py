@@ -48,6 +48,10 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
                 "piapro_set_singer",
                 "cubase_get_midi_routing",
                 "cubase_set_midi_routing",
+                "piapro_read_note_expression",
+                "edit_ppsf_note_expression",
+                "piapro_set_note_expression",
+                "piapro_set_part_evec",
             } <= names
             initial = await client.call_tool(
                 "inspect_project", {"path": str(source), "include_notes": True}
@@ -91,6 +95,42 @@ def test_real_stdio_discovery_edit_error_and_recovery(tmp_path, mode):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize('mode', ['auto', 'legacy'])
+def test_real_stdio_native_expression_file_contract(tmp_path, mode):
+    fixtures = os.environ.get('CP_TEST_EXPRESSIONS')
+    if not fixtures:
+        pytest.skip('Set CP_TEST_EXPRESSIONS to local self-authored native fixtures')
+    async def scenario():
+        source = Path(fixtures) / 'baseline.ppsf'
+        env = dict(os.environ, PYTHONUTF8='1', CUBASE_PIAPRO_STATE_DIR=str(tmp_path / 'state'))
+        params = StdioServerParameters(command=sys.executable, args=[str(ROOT / 'run_server.py')], env=env)
+        async with Client(params, mode=mode) as client:
+            result = await client.call_tool('piapro_read_note_expression', {'path': str(source), 'limit': 1})
+            assert not result.is_error
+            current = unpack(result)
+            assert len(current['notes']) == 1 and current['note_count'] == 3
+            output = tmp_path / 'expression.ppsf'
+            changed = await client.call_tool('edit_ppsf_note_expression', {
+                'path': str(source), 'output_path': str(output), 'expected_sha256': current['sha256'],
+                'changes': [{'id': current['notes'][0]['id'], 'style': {'accent': 73},
+                             'vibrato': {'length_percent': 60, 'depth_curve': [{'position': 0, 'value': 40}]},
+                             'evec_pronunciation': 'mild', 'evec_consonant_repeat': 2}]})
+            assert not changed.is_error
+            record = unpack(changed)
+            assert not record['live_state_updated']
+            assert record['expressions']['notes'][0]['phoneme'] == 'k k k#2 a'
+            assert record['expressions']['notes'][0]['style']['accent'] == 73
+            assert record['expressions']['notes'][0]['vibrato']['length_percent'] == 60
+            stale = await client.call_tool('edit_ppsf_note_expression', {
+                'path': str(source), 'output_path': str(tmp_path / 'refused.ppsf'), 'expected_sha256': '0' * 64,
+                'changes': [{'id': current['notes'][0]['id'], 'style': {'accent': 1}}]})
+            assert stale.is_error and not (tmp_path / 'refused.ppsf').exists()
+            refused = await client.call_tool('piapro_set_part_evec', {
+                'track_index': 0, 'part_index': 0, 'expected_revision': 'stale', 'color': 'soft'})
+            assert refused.is_error and 'DIALOG_FALLBACK_REQUIRED' in str(refused)
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
 def test_real_stdio_native_singer_file_contract(tmp_path, mode):
     native_path = os.environ.get("CP_TEST_PPSF")
@@ -102,7 +142,7 @@ def test_real_stdio_native_singer_file_contract(tmp_path, mode):
         params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "run_server.py")], env=env)
         async with Client(params, mode=mode) as client:
             discovered = await client.list_tools()
-            assert len(discovered.tools) == 27
+            assert len(discovered.tools) == 31
             result = await client.call_tool("piapro_list_singers", {"path": native_path})
             assert not result.is_error
             current = unpack(result)

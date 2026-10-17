@@ -10,7 +10,7 @@ from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict
 
-from . import __version__, projects, storage, live_midi, windows, cubase, project_templates, singers, routing
+from . import __version__, projects, storage, live_midi, windows, cubase, project_templates, singers, routing, expressions, piapro_evec
 
 mcp = MCPServer(
     "cubase-piapro",
@@ -25,6 +25,8 @@ mcp = MCPServer(
         "Piapro supports only one instance per computer: reuse the existing instance. "
         "Piapro singer track_index is an INTERNAL score track, separate from Cubase host UIDs. "
         "Routing uses an explicitly enabled bounded UI fallback and actual readback; reserved MCP ports cannot be music routes. "
+        "Native note expression IDs are logical t#:p#:n# associations, distinct from physical PPSF e# IDs and Cubase UIDs. "
+        "Prefer native expression writes. First EVEC enable/disable uses the explicitly opted-in bounded current-part host UI. "
         "Do not claim success when verified/connected is false or an error is returned."
     ),
 )
@@ -63,13 +65,49 @@ class NewNote(BaseModel):
     phoneme: str = "a"
 
 
+class ExpressionStyle(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    bend_depth: int | None = None
+    bend_length: int | None = None
+    decay: int | None = None
+    accent: int | None = None
+    opening: int | None = None
+    velocity: int | None = None
+    rise_portamento: bool | None = None
+    fall_portamento: bool | None = None
+
+
+class VibratoPoint(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    position: float
+    value: int
+
+
+class VibratoExpression(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    length_percent: float | None = None
+    depth_curve: list[VibratoPoint] | None = None
+    rate_curve: list[VibratoPoint] | None = None
+
+
+class NoteExpressionChange(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    id: str
+    style: ExpressionStyle | None = None
+    vibrato: VibratoExpression | None = None
+    evec_color: str | None = None
+    evec_release: str | None = None
+    evec_pronunciation: str | None = None
+    evec_consonant_repeat: int | None = None
+
+
 @mcp.tool(annotations=READ)
 def get_capabilities() -> dict:
     """List implemented operations and exact limitations without changing any app."""
     return {
         "version": __version__,
         "transport": "stdio",
-        "file_editing": ["vsqx3", "vsqx4", "legacy-ppsf-notes-and-singers", "standard-midi"],
+        "file_editing": ["vsqx3", "vsqx4", "legacy-ppsf-notes-singers-expressions-evec", "standard-midi"],
         "curves": "VSQX PIT/PBS/DYN/BRE/BRI/CLE/GEN/OPE/POR",
         "cpr": "partial read-only",
         "native_ppsf_gate": "exact binary roundtrip and native tail preservation; notes change events/matching editor copies; singers change only the table and two verified program copies",
@@ -79,6 +117,8 @@ def get_capabilities() -> dict:
         "piapro_loading": "reuse/select/open the single existing instance, or add its first instrument track",
         "piapro_ui": "native activation notices, dynamic Win32 menus and standard dialogs; no foreground or pointer input for file operations",
         "piapro_singers": "native PPSF table and synchronized program copies; cached actual singer definitions, optimistic live revision, snapshot/import/readback and recovery",
+        "note_expression": "native PPSF bend/accent/decay/opening/velocity/portamento; Normal/Type1 vibrato duration/depth/rate envelopes; logical EVEC associations; Miku pronunciation/repeat and compiled soft/power, short/long switching",
+        "evec_host_generation": "explicit bounded settings UI on the currently open part of an active single-part Miku EVEC track; native complete readback and recovery",
         "midi_routing": "Cubase 14 English Routing inspector; host UID authorization, local Windows OCR, verified menu/field readback; instrument MIDI input and MIDI-track input/output",
         "cubase_dialog_fallback": "explicit allow_dialog_fallback for validated Cubase 14 English instrument/input selectors: DPI-scaled dialog-relative pointer messages, native search edit and key messages",
         "focus_click_enabled": os.environ.get("CUBASE_PIAPRO_FOCUS_CLICK") == "1",
@@ -318,6 +358,39 @@ def set_ppsf_singer(path: str, output_path: str, expected_sha256: str,
 def piapro_set_singer(track_index: int, singer_id: str, expected_revision: str) -> dict:
     """Change ONE Piapro INTERNAL track singer using a captured native definition. Use latest piapro_list_singers revision, not a Cubase UID/revision. Requires stopped host feedback; snapshots before change, imports native PPSF, verifies all track assignments and unrelated song/plugin data, attempts verified recovery on failure. Changes remain unsaved in Cubase; phonemes/lyrics stay unchanged."""
     return singers.set_live(track_index, singer_id, expected_revision)
+
+
+@mcp.tool(annotations=WRITE)
+def piapro_read_note_expression(path: str | None = None, offset: int = 0, limit: int = 100) -> dict:
+    """Read logical native PPSF note style, vibrato curves and EVEC assignments. With path, file-only; otherwise export actual stopped Piapro and return an expression revision. IDs t#:p#:n# belong to this snapshot, not physical e# events or Cubase UIDs. Vibrato curve positions span zero to one and values zero to 127. Returns a bounded page."""
+    if offset < 0 or not 1 <= limit <= 1000:
+        raise expressions.IntegrationError('INVALID_PAGINATION', 'Use a nonnegative offset and a limit from one to 1000.')
+    result = expressions.read_native_file(path) if path is not None else expressions.list_live()
+    result['note_count'] = len(result['notes'])
+    result['notes'] = result['notes'][offset:offset + limit]
+    return result | {'offset': offset, 'limit': limit}
+
+
+@mcp.tool(annotations=WRITE)
+def edit_ppsf_note_expression(path: str, output_path: str, expected_sha256: str,
+                              changes: list[NoteExpressionChange]) -> dict:
+    """File-only native PPSF expression edits with exact source SHA-256. Styles: bend depth/length, decay, accent (0..100), opening/velocity (0..127), boolean portamento. Normal/Type1 vibrato supports length percent and depth/rate curves. Miku EVEC pronunciation none/mild/strong and consonant repeat 1..4 support Japanese vowels or captured k/4 consonant-vowel patterns. Existing compiled color soft/power and release short/long may switch; first color/release enabling needs the host-generation fallback. Unknown associations/profiles are refused. No live update."""
+    return expressions.set_file(path, output_path, expected_sha256,
+                                [c.model_dump(exclude_none=True) for c in changes])
+
+
+@mcp.tool(annotations=WRITE)
+def piapro_set_note_expression(changes: list[NoteExpressionChange], expected_revision: str) -> dict:
+    """Apply native note expressions using the latest piapro_read_note_expression revision and logical IDs. No content clicks. Saves a real snapshot, imports a validated native edit, verifies complete musical/expression data and attempts verified recovery on failure. Native vibrato currently supports the captured Normal/Type1 profile. Changes remain unsaved in Cubase."""
+    return expressions.set_live([c.model_dump(exclude_none=True) for c in changes], expected_revision)
+
+
+@mcp.tool(annotations=WRITE)
+def piapro_set_part_evec(track_index: int, part_index: int, expected_revision: str,
+                         color: str | None = None, release: str | None = None,
+                         allow_dialog_fallback: bool = False) -> dict:
+    """Generate/disable Miku EVEC through the bounded Piapro settings fallback. Scope: ALL notes of the requested CURRENTLY OPEN piano-roll part on the active SINGLE-PART track. Open that part first. Color none/soft/power; release none/short/long. Requires explicit fallback opt-in and latest expression revision. Verifies actual caption count, selected choices, native associations and all unrelated music; snapshots and verifies recovery. Existing compiled soft/power changes should prefer piapro_set_note_expression."""
+    return piapro_evec.set_part(track_index, part_index, expected_revision, color, release, allow_dialog_fallback)
 
 
 @mcp.tool(annotations=WRITE)

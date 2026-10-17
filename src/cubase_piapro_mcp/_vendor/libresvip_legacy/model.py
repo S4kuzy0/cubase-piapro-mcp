@@ -155,8 +155,8 @@ PpsfLyricHandle = Struct(
 )
 
 PpsfBPValue = Struct(
-    "value" / Int32ul,
-    "position" / Int16ul,
+    "value" / Int16ul,
+    "position" / Int32ul,
 )
 
 PpsfBPValueList = PrefixedArray(
@@ -686,7 +686,7 @@ PpsfVSQSyllableData = Struct(
 PpsfVocaloidEVECData = Struct(
     "parameter_name" / PascalString(Byte, "utf-8"),
     "unknown_int" / Int32ul,
-    "mode" / Byte,
+    "voicebank_name" / PascalString(Byte, "utf-8"),
     "type_name" / PascalString(Byte, "ascii"),
 )
 

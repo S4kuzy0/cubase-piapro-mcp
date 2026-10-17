@@ -16,6 +16,8 @@ Codex 通过本机 stdio 启动官方 Python MCP SDK 服务。文件处理不需
 | 音轨添加 | MIDI Remote AddTrack 命令、原生 Edit/Button | MIDI/Piapro 自绘选择器需显式启用受限布局后备 |
 | 歌手 | 实际 PPSF SingerEntry、双 Program Change 定点写入 | 仅已捕获定义与静态布局；快照、导入、完整回读及失败恢复 |
 | MIDI 路由 | Win32 窗口消息、Windows.Media.Ocr、菜单与检视器回读 | Cubase 14 英文受限布局；乐器轨只读写 MIDI 输入 |
+| 音符表情/颤音 | PPSF 逻辑主音与派生事件定点修改 | 八项风格；Normal/Type1 长度、深度与速度包络 |
+| Miku EVEC | 原生发音扩展/辅音重复及已编译颜色/尾音切换；首次生成用宿主设置面板 | 当前已打开钢琴卷帘、活动单区段轨的整个区段；显式启用界面后备 |
 
 PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映射与原始时序一致时同步两处；其他插件及未知块保持原内容。原生时序操作不延长区段原有音符终点，扩展使用 VSQX。
 
@@ -50,10 +52,14 @@ PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映�
 | `piapro_set_singer` | 按 Piapro 内部轨索引、真实定义 ID 与现场 revision 切换，完整回读及失败恢复 |
 | `cubase_get_midi_routing` | 按宿主 UID 与清单 revision 读取实际输入/输出、可识别选项及路由 revision |
 | `cubase_set_midi_routing` | 按双 revision 与路由 ID 修改，重新打开选择器回读并保留恢复检查点 |
+| `piapro_read_note_expression` | 原生 PPSF 文件或现场快照的逻辑音符、风格、颤音、EVEC 分页读取 |
+| `edit_ppsf_note_expression` | 按来源 SHA-256 写入 PPSF 表情/颤音/已验证 EVEC，不更新现场 |
+| `piapro_set_note_expression` | 按最新现场 revision 原生修改，导入、完整回读及失败恢复 |
+| `piapro_set_part_evec` | 首次生成/停用整区段 EVEC 颜色或尾音，受限界面加原生修复与核验 |
 
 ## 写入与回读约定
 
-音符 ID 只对某个输入哈希有效。VSQX 使用轨道、区段、音符的数组位置；PPSF 使用物理事件位置；MIDI 使用原轨道消息位置。编辑并再次检查后，使用新哈希和新 ID。
+音符 ID 只对某个输入哈希有效。VSQX 使用轨道、区段、音符的数组位置；旧 PPSF 通用音符工具使用物理事件位置 `e#`，表情工具使用逻辑关联 `t#:p#:n#`；MIDI 使用原轨道消息位置。编辑并再次检查后，使用新哈希和新 ID。
 
 音符的 `start_tick` 相对于所属区段，MIDI 中则相对于轨道起点。`absolute_tick` 用于观察工程位置。VSQX 的预备小节和 PPSF 的乐曲时间起点不应直接混为同一原点。音量与声像为宿主归一化值，不是分贝或声道百分比，回传受 MIDI 量化影响。
 
@@ -70,6 +76,18 @@ VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在�
 每个现场写入持有跨进程 live-daw 锁。歌手保留原生快照并在失败后重新导入、导出核验；路由写入前保存 JSON 检查点，提交后重开未过滤菜单并与检视器核对。Piapro 输出再核对宿主插件身份。失败恢复只恢复本次请求的方向，但成功声明必须同时核对两个方向，不能忽略未请求字段的意外变化。人工及其他应用不受 MCP 锁约束。
 
 ## 现场操作与激活
+
+### 原生表情及 EVEC 事务
+
+`expressions.py` 通过 ENOT 的三个 Clip 局部槽解析主音、颜色元音及尾音；不是全局 Events 序号。验证同音高、连续时序、总时长及唯一关联，拒绝共享或未知布局。风格参数仅改已确认字段；重音/衰减改主音，其余相关风格同步编译链。逻辑颤音起点保存在 `dur_tick_copy`，历史字段 `vibrato_start` 实际为辅音重复计数；事件 `vibrato.start_position` 实际为颤音长度。包络按每个派生事件的有效颤音区间投影，并消除边界浮点误差和宿主会丢弃的终点。原生深度/速度点使用 Int16 值及 Int32 位置，启用 EVEC 的声库名是 PascalString；这两处本地模型修正有独立往返测试和上游记录。
+
+Native EVEC 修改保留原始音节，同步更新 CVV/VSil/CTop 与编译音素，首次发音扩展的字符串长度差同步各级容器。已有 Soft/Power 和 Short/Long 只更换经实机确认的枚举及对应音素；颜色/尾音首次生成或停用由宿主编译，不猜测派生时序。启用 EVEC 的目标禁止旧物理音符写入及不同歌手赋值，避免部分链失配。
+
+发音扩展仅接受日语元音及已捕获的 `k`/`4` 子音加元音，不能仅凭形似简单 CV 就给未经验证的子音拼接 EVEC 编码。其他子音或复杂音素先返回明确错误，不进入宿主导入。表情和颤音不要求改变原始音素。
+
+`piapro_evec.py` 要求 Piapro 2.0.5 中文设置布局、当前已打开的钢琴卷帘、活动轨恰好一个区段。用动态菜单打开设置，以实际标题、框体、放大本机 OCR 读出的音符数及选中标记授权窗口相对消息。范围始终为整个当前区段，未请求的混合颜色/尾音拒绝统一覆盖。界面会覆盖混合表情和重塑颤音，因此先保存原数据、让宿主生成 EVEC，再原生补回原风格、颤音及未请求的发音参数；最终重新导入、导出，严格检查原生结果及所有无关音乐、自动化和编辑元数据。错误路径取消已确认浮层或导入快照，恢复后必须再次读取核验。
+
+现场 expression revision 覆盖所有非编辑块和逻辑 ENOT 元数据，忽略选择标记；与歌手 revision 不互换。文件写入仍要求完整字节往返、来源 SHA-256 和覆盖备份，现场写入要求停止走带及跨进程锁。生成 EVEC 会重排物理事件，比较时需解析索引，但不能忽略未请求的音符、全局块、剪辑或自动化变化。
 
 当前操作向已核验的 Cubase/Piapro 窗口发送有超时的 WM_ACTIVATE 通知，无须切换前台或物理鼠标。文件导入、导出与歌手切换已在其他应用处于前台时实测。`activate_window` 与 `--focus-click` 仅保留旧兼容用途，当前正式路径不调用标题栏点击。
 
@@ -109,6 +127,12 @@ VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在�
 | `ROUTING_OPTION_UNAVAILABLE` | 请求项不可识别、歧义、保留控制端口或未验证的 All MIDI Inputs |
 | `ROUTING_CHANGE_INCOMPLETE` | 查看检查点及双向恢复回读，未通过时不得盲目重试 |
 | `UNSUPPORTED_ROUTING_LAYOUT` | 展开 Routing 并使用已验证的英文 Cubase 14 布局；其他布局拒绝 |
+| `EVEC_UI_REQUIRED` | 首次颜色/尾音生成或停用使用受限后备；已编译切换可原生修改 |
+| `PIAPRO_PART_VIEW_REQUIRED` | 打开所请求单区段活动轨的钢琴卷帘，不能使用概览或猜测坐标 |
+| `EXPRESSION_LAYOUT_UNSUPPORTED` / `VIBRATO_PROFILE_UNSUPPORTED` | 未知关联或颤音预设，停止原生写入 |
+| `EXPRESSION_CHANGE_INCOMPLETE` / `EVEC_CHANGE_INCOMPLETE` | 查看快照及真实恢复状态；未核验恢复时先检查现场 |
+| `EVEC_NOTE_REQUIRES_EXPRESSION_TOOL` | 避免修改部分派生链，改用逻辑表情工具 |
+| `EVEC_SINGER_CHANGE_UNSUPPORTED` | 先停用目标轨 EVEC，再进行不同歌手赋值 |
 
 ## 来源与部署
 

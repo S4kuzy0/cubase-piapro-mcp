@@ -1,6 +1,6 @@
 # Cubase Piapro MCP
 
-本地运行、优先直接处理工程数据的 MCP。当前版本 0.3.0，共 27 个工具；适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
+本地运行、优先直接处理工程数据的 MCP。当前版本 0.4.0，共 31 个工具；适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
 
 ## 功能
 
@@ -10,6 +10,8 @@
 - CPR：借助 CubaseTools 核心做部分只读解析，保留重名轨道。结果为启发式提取，不能作为完整工程或实时状态。
 - Piapro：动态发现 Windows 窗口、菜单与标准文件对话框，用原生激活通知和窗口消息导入、导出，无须前台切换或鼠标输入。WAV 为当前选中 Piapro 音轨。
 - 歌手/音色：读取本机安装元数据及实际导出的原生歌手定义，直接修改 PPSF 歌手表与两份 Program Change；现场切换先快照，再导入及完整乐谱回读，失败恢复并再次回读。本机六种 Miku 音色的原生赋值与回读均已实测。
+- 表情与颤音：直接读写旧版 PPSF 的弯音深度/长度、衰减、重音、开口度、力度及上下行滑音；支持 Normal/Type1 颤音长度、深度和速度包络。按逻辑音符关联主音、EVEC 元音与尾音，现场修改保留快照并完整回读。
+- Miku EVEC：发音扩展 none/mild/strong、辅音重复，以及已有 Soft/Power、Short/Long 编译链的切换直接改数据。首次生成或停用颜色/尾音使用明确启用的受限设置界面，适用于当前打开钢琴卷帘中的整个区段、活动单区段轨；会补回宿主设置面板意外覆盖的表情、颤音和发音参数，再次导入并核验。
 - Cubase：通过 MIDI Remote 回读宿主 UID、轨道类型、名称、乐器和选中状态，按 UID 选择音轨；支持播放、停止、录音及选中通道的音量、声像、静音、独奏。成功需要宿主反馈。
 - 工程与音轨：从本机预置 Piapro 的独立 CPR 模板创建新工程；添加音频、MIDI 或首个 Piapro 乐器轨；复用、选择并打开已有 Piapro。音频轨使用原生控件消息；MIDI/Piapro 的自绘选择器需要显式启用受限的对话框相对指针消息后备。
 - MIDI 路由：读取、修改 MIDI 轨的输入和输出，以及乐器轨的 MIDI 输入。官方 MIDI Remote 没有相应路由属性，使用经过布局核验的 Routing 检视器后备；Windows 本机 OCR、菜单选中项、检视器文本及目标乐器宿主反馈共同核验结果，保留恢复检查点。
@@ -84,11 +86,20 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 
 备份、快照与本机安装记录位于 `CUBASE_PIAPRO_STATE_DIR`，未设置时位于本机应用数据目录中的 `CubasePiaproMCP`。备份恢复使用 `list_recovery_copies` 与 `restore_recovery_copy`。恢复当前版本前也会再次备份。
 
+### EVEC、表情与颤音
+
+`piapro_read_note_expression(path=...)` 读取原生文件；省略路径时先导出现场。返回的逻辑音符 ID 为 `t#:p#:n#`，与旧物理事件 `e#`、Cubase 宿主 UID 分开使用。文件修改用 `edit_ppsf_note_expression` 和来源 `sha256`；现场修改用 `piapro_set_note_expression` 和最新 `revision`，写入结果保留在未保存现场。
+
+`changes` 中的 `style` 支持 `bend_depth`、`bend_length`、`decay`、`accent`、`opening`、`velocity`、`rise_portamento`、`fall_portamento`。`vibrato` 支持 `length_percent`、`depth_curve`、`rate_curve`，曲线点为 `{position, value}`，从起点零开始且位置严格递增。原生曲线使用有限分辨率；区段边界附近的控制点会归并，实际结果以回读为准。
+
+`evec_pronunciation` 和 `evec_consonant_repeat` 适用于已验证的 Miku V4X EVEC 日语元音，以及实机捕获的 `k`/`4` 子音加元音；其他子音、复杂或自定义音素暂拒绝扩展写入，原有表情和颤音仍可编辑。已存在的颜色/尾音用 `evec_color`、`evec_release` 逐音符切换。首次颜色/尾音生成调用 `piapro_set_part_evec(..., allow_dialog_fallback=true)`，并先打开目标区段。该后备需要 Piapro Standard 2.0.5 中文设置布局；整区段应用，不支持任意视图、任意选区或多区段轨。未指定的颜色/尾音原本混合时拒绝批量后备，防止宿主统一覆盖。
+
 ## 限制
 
 - 不提供任意 CPR 原生写入、Piapro NT ZIP 编辑、声库逆向解析或音色模型提取。
 - 原生 PPSF 插入/删除音符及批量新增控制点暂未开放；这些操作使用 VSQX。原生时序修改要求目标音符的两份时序一致，并保持在区段原有音符终点范围内；否则改用 VSQX。
 - 原生歌手写入只接受精确字节往返、已知静态 Program Change 布局和本机捕获定义；两份索引不一致、共享引用或带时间的歌手自动化均拒绝。切换会重载当前 Piapro 乐曲。
+- EVEC 主音和派生音必须共同处理；旧物理音符工具拒绝修改启用 EVEC 的目标，改用逻辑表情工具。启用 EVEC 的轨道拒绝直接换为其他歌手，应先停用相关设置。当前只支持已验证的 Miku 颜色/尾音及 Normal/Type1 颤音，不承诺其他声库、EVEC 时序重设计或其他颤音预设。
 - Piapro 乐谱工具要求恰好一个原生编辑器；`cubase_load_piapro` 可加载首个实例或复用已有实例。Piapro 每台电脑仅支持一个实例，包含其他工程和 DAW；同一工程的重复添加会在发送宿主命令前被拒绝。
 - 实时清单覆盖前 64 个音频、乐器、采样器和 MIDI 混音通道，含隐藏通道，不含文件夹和输入/输出通道。MIDI 轨的 `plugin` 可以表示其输出所连接的乐器，不代表插件实例的所有权。
 - 添加 MIDI/Piapro 的后备仅验证 Cubase 14 英文对话框及其 DPI 布局。添加流程中的输入请求仍没有独立回读，需另用路由工具验证；音频轨沿用 Cubase 默认输入/输出。新路由工具的结果来自 UI 回读，官方宿主路由接口并不存在；未验证外接硬件、多层或滚动菜单、所有语言及任意声库。
@@ -103,6 +114,6 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 .venv/Scripts/python.exe -m pytest -q
 ```
 
-测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料；原始资料不随项目分发。
+测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料，EVEC/表情样本通过 `CP_TEST_EXPRESSIONS` 指向本机自制 A/B 目录；两者均不随项目分发。
 
-27 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，查询边界修复见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+31 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，查询边界修复见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

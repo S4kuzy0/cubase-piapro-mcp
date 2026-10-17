@@ -141,6 +141,31 @@ def editor_note_map(chunks):
     return result
 
 
+def active_evec_events(chunks, track_index=None):
+    """Find physical events owned by active EVEC logical notes, without guessing layout."""
+    if 'EditorDatas' not in chunks:
+        return set()
+    editors = [t for t in chunks['EditorDatas'].data.track_datas if t.data.track_type == 3]
+    tracks = chunks['Tracks'].data.vocaloid3_event_tracks.data
+    clips = {c.index: c for c in chunks['Clips'].data.vocaloid3_note_clips}
+    found = set()
+    for index, (track, editor) in enumerate(zip(tracks, editors)):
+        if track_index is not None and index != track_index:
+            continue
+        for clip_id, clip_editor in zip(track.data.clip_indices, editor.data.clip_datas):
+            indices = clips[clip_id].data.noteclip.iclip.event_indices
+            for note in clip_editor.data.element_array:
+                if note.magic != 'EditorNoteData':
+                    continue
+                active = any(v.magic == 'VocaloidEVECData' and v.data.unknown_int != 0xFFFFFFFF
+                             for v in note.data.sub_array_2)
+                if active:
+                    if note.data.int32_array is None or any(i >= len(indices) for i in note.data.int32_array if i != 0xFFFFFFFF):
+                        raise IntegrationError('EVEC_LAYOUT_UNSUPPORTED', 'Active EVEC note associations are not verified.')
+                    found.update(indices[i] for i in note.data.int32_array if i != 0xFFFFFFFF)
+    return found
+
+
 def edit(data: bytes, changes: list[dict]) -> bytes:
     project, chunks = load(data)
     if model.PpsfLegacyProject.build(project) != data:
@@ -149,6 +174,9 @@ def edit(data: bytes, changes: list[dict]) -> bytes:
             "Native write requires an exact unmodified byte round-trip. Use VSQX instead.",
         )
     lookup = {row["id"]: event for row, event in note_entries(project, chunks)}
+    protected = {f'e{i}' for i in active_evec_events(chunks)}
+    if any(change.get('id') in protected for change in changes):
+        raise IntegrationError('EVEC_NOTE_REQUIRES_EXPRESSION_TOOL', 'Physical note edits cannot partially rewrite an EVEC chain. Use logical note-expression tools, or disable EVEC before changing pitch/lyrics/timing.')
     events_model = model.ppsf_prefixed_array(model.PpsfEvent)
     original_events_length = len(
         events_model.build(chunks["Events"].data, version=project.version)

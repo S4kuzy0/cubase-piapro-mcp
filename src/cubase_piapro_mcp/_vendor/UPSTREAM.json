@@ -8,7 +8,18 @@
         "libresvip_legacy/LICENSE.txt": "b10f395e8768a14c8af4b4dfb9c042c54678497f24393808a659a72bf28e08e7",
         "libresvip_legacy/model.py": "83d022ea9de98845c48a6a09160f76957e45412af73d70793caa98379491e1c2",
         "libresvip_legacy/__init__.py": "4f63507efc66ef8025e23a6aac0cd53769c190a89cc72a3eb601fe6281f534e9"
-      }
+      },
+      "local_patches": [
+        {
+          "file": "libresvip_legacy/model.py",
+          "upstream_sha256": "83d022ea9de98845c48a6a09160f76957e45412af73d70793caa98379491e1c2",
+          "patched_sha256": "cfe3fb4a1861d66deb3f2cd8aeac77f576e413b1747476a0fb8176688e9abb64",
+          "corrections": [
+            "Active EVEC voicebank name is PascalString(Byte, UTF-8), not a mode byte",
+            "Vibrato breakpoint is Int16 value followed by Int32 position"
+          ]
+        }
+      ]
     },
     {
       "repository": "https://github.com/schwifty00/CubaseTools",
