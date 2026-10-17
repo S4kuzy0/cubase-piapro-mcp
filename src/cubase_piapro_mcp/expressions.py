@@ -278,6 +278,11 @@ def _set_vibrato(entry, change):
                         values[-1] = endpoint
                     else:
                         values.append(endpoint)
+            if (event is entry['members'][-1] and ed.int32_array[1] == SENTINEL
+                    and ed.int32_array[2] != SENTINEL and len(values) > 1):
+                if len({point['value'] for point in values}) > 1:
+                    raise IntegrationError('RELEASE_ONLY_VIBRATO_UNSUPPORTED', 'Piapro discards varying vibrato points inside a release-only tail. Keep Voice Color, disable both color and release, or explicitly request a constant envelope; no data was written.')
+                values = values[:1]
             vibrato[field] = values
 
 

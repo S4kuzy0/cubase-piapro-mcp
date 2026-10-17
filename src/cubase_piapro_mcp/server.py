@@ -137,7 +137,7 @@ def get_capabilities() -> dict:
         "piapro_singers": "native PPSF table and synchronized program copies; cached actual singer definitions, optimistic live revision, snapshot/import/readback and recovery",
         "note_expression": "native PPSF bend/accent/decay/opening/velocity/portamento; Normal/Type1 vibrato duration/depth/rate envelopes; logical EVEC associations; Miku pronunciation/repeat and compiled soft/power, short/long switching",
         "evec_host_generation": "explicit bounded settings UI on verified disposable internal Miku work tracks; merge only selected notes across parts/tracks, remove work tracks, complete native readback/recovery",
-        "evec_range_host_validation": "pending unlocked-desktop end-to-end acceptance; native multi-part ranges and separate host-generated merge have passed",
+        "evec_range_host_validation": "verified native multi-part ranges, mixed-setting work-track generation and both-off; actual registered SDK first/individual-off/both-off with constant vibrato; varying release-only vibrato refused",
         "expression_selection": "explicit logical note_ids or multiple zero-based part note-index ranges with exclusive end; max 4096 notes, 256 ranges, 16 host-generation groups",
         "miku_pronunciation_inventory": sorted(expressions.PRONUNCIATION_CONSONANTS | expressions.PRONUNCIATION_SINGLE_PHONEMES),
         "midi_routing": "Cubase 14 English Routing inspector; host UID authorization, local Windows OCR, verified menu/field readback; instrument MIDI input and MIDI-track input/output",
@@ -157,6 +157,7 @@ def get_capabilities() -> dict:
             "Routing is a UI fallback, not a native routing API; only recognized current routes are offered",
             "Dedicated MCP ports and unverified All MIDI Inputs are not selectable music routes",
             "Singer writes require exact native roundtrip, known static program layout and a captured local definition; no timed singer automation",
+            "Piapro drops additional vibrato points inside release-only tails: work generation of release-only EVEC with varying envelopes is refused before mutation; keep color, disable both, or explicitly choose constant curves",
         ],
         "state_dir": str(storage.state_dir()),
     }
@@ -420,7 +421,7 @@ def edit_ppsf_note_expression_range(path: str, output_path: str, expected_sha256
 @mcp.tool(annotations=WRITE)
 def piapro_set_note_expression_range(selection: NoteSelection, settings: ExpressionSettings,
                                      expected_revision: str, allow_dialog_fallback: bool = False) -> dict:
-    """Apply uniform settings only to explicit logical IDs OR multiple zero-based half-open part note-index ranges. Uses the latest whole-song expression revision. Native edits are preferred. Explicit fallback enables first Miku EVEC color/release generation or disable on disposable internal work tracks in the SAME Piapro instance, verifies their singer/notes/active state, merges only target chains and removes temporary content. No need to open/select user parts. Supports up to 4096 notes/256 ranges/16 work groups; unknown phonemes, references and layouts refused. Complete native readback and verified snapshot recovery; Cubase project remains unsaved."""
+    """Apply uniform settings only to explicit logical IDs OR multiple zero-based half-open part note-index ranges. Uses the latest whole-song expression revision. Native edits are preferred. Explicit fallback enables first Miku EVEC color/release generation or disable on disposable internal work tracks in the SAME Piapro instance, verifies singer/notes/active state, merges only targets and removes temporary content. No need to open/select user parts. Up to 4096 notes/256 ranges/16 groups; unknown phonemes/references/layouts refused. Release-only host generation with varying vibrato is refused because Piapro drops tail curve points; keep color, disable both or explicitly request constant curves. Full native readback/recovery; Cubase remains unsaved."""
     return expression_ranges.set_live(selection.model_dump(exclude_none=True),
         settings.model_dump(exclude_none=True), expected_revision, allow_dialog_fallback)
 

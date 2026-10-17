@@ -36,6 +36,10 @@ def plan(data, ids, settings):
             v = event.data.vibrato
             if (v.handle_id != 0 or v.depth_data != b'normal' or v.flag != 0 or v.rate_data != b''):
                 raise IntegrationError('VIBRATO_PROFILE_UNSUPPORTED', 'Work generation preserves only the verified Normal/Type1 profile.')
+        vibrato = expressions.native_vibrato(entry)
+        if (color == 'none' and release != 'none' and vibrato['length_percent']
+                and any(len({p['value'] for p in vibrato[curve]}) > 1 for curve in ('depth_curve', 'rate_curve'))):
+            raise IntegrationError('RELEASE_ONLY_VIBRATO_UNSUPPORTED', 'Host generation of release-only EVEC cannot safely preserve a varying vibrato envelope. Keep color, disable both EVEC choices, or explicitly choose constant curves first. No work track was imported.')
         phone = original_phone(entry)
         tokens = phone.split()
         if not (len(tokens) == 1 and tokens[0] in expressions.PRONUNCIATION_SINGLE_PHONEMES
@@ -102,6 +106,7 @@ def _work_entries(data, original, name, group, expected):
 
 
 def _apply(root, folder, count, sequence, color, release, mode, repeat, frame):
+    evec_focus.require_desktop()
     windows.notify_activation(root['handle'])
     piapro_evec._menu(root, '编辑 / 打开钢琴卷帘')
     time.sleep(.3)

@@ -73,6 +73,52 @@ def _caption_from_cancel(bitmap, rows):
     return {'box': [left + 80, top + 5, left + width - 80, top + 18]}
 
 
+def _caption_binary_count(path, scale):
+    """Read exact observed 0/1 glyphs when local Chinese OCR loses the zero.
+
+    Restricted to the captured default-size Piapro caption font. Unknown
+    glyphs/layouts return None; the ordinary exact OCR check then still applies.
+    No expected count is used to infer a missing digit.
+    """
+    if abs(scale - 1) > .001:
+        return None
+    bitmap = native_visual.Bitmap(path)
+    if bitmap.width != 792 or abs(bitmap.height) < 36:
+        return None
+    templates = {
+        ('011', '101', '001', '001', '001', '001', '001', '001'): '1',
+        ('01111', '01001', '10001', '10001', '10001', '01001', '01001', '00110'): '0',
+        ('1', '0', '0', '0', '0', '1'): ':',
+        ('010', '010', '001', '001', '001', '001', '001', '001', '010', '100'): ')',
+    }
+    ink = lambda x, y: max(bitmap.pixel(x, y)) < 128
+    glyphs = []
+    x = 40
+    while x < bitmap.width - 80:
+        if not any(ink(x, y) for y in range(8, 35)):
+            x += 1
+            continue
+        left = x
+        while x < bitmap.width - 80 and any(ink(x, y) for y in range(8, 35)):
+            x += 1
+        ys = [y for y in range(8, 35) if any(ink(px, y) for px in range(left, x))]
+        top, bottom = min(ys), max(ys) + 1
+        rows = tuple(''.join('1' if ink(px, py) else '0' for px in range(left, x, 2))
+                     for py in range(top, bottom, 2))
+        glyphs.append(templates.get(rows))
+    if not glyphs or glyphs.pop() != ')':
+        return None
+    digits = []
+    while glyphs:
+        glyph = glyphs.pop()
+        if glyph == ':' and digits:
+            return int(''.join(reversed(digits)))
+        if glyph not in ('0', '1'):
+            return None
+        digits.append(glyph)
+    return None
+
+
 def _palette(root, folder, count, sequence, recovery_frame=None):
     captured = native_visual.capture(root, folder / f'evec-{sequence}-window.bmp')
     recognized = native_visual.recognize(captured)
@@ -108,7 +154,10 @@ def _palette(root, folder, count, sequence, recovery_frame=None):
         recovery_frame.update(frame)
     caption = ''.join(row['text'] for row in panel['rows'] if row['box'][1] < 48 * scale)
     numbers = re.findall(r'\d+', caption)
-    if not numbers or int(numbers[-1]) != count:
+    actual_count = _caption_binary_count(panel['path'], scale)
+    if actual_count is None:
+        actual_count = int(numbers[-1]) if numbers else None
+    if actual_count != count:
         raise IntegrationError('EVEC_SELECTION_UNVERIFIED', 'The enlarged actual caption does not confirm the requested complete part count.')
     normalize = lambda text: re.sub(r'[\W_]', '', text.lower())
     left_labels = [normalize(row['text']) for row in panel['rows']

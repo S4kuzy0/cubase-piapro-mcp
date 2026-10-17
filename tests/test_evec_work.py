@@ -41,3 +41,29 @@ def test_host_generation_groups_preserve_mixed_unrequested_pronunciation(lab):
     groups = evec_work.plan(base, ids, {'evec_color': 'soft'})
     assert {(key[3], key[4]) for key, group in groups} == {('strong', 2), ('none', 1)}
     assert sum(len(group['entries']) for key, group in groups) == 16
+
+
+def acceptance():
+    path = os.environ.get('CP_TEST_EVEC_ACCEPTANCE')
+    if not path:
+        pytest.skip('Set CP_TEST_EVEC_ACCEPTANCE to the local unlocked-desktop captures')
+    return Path(path)
+
+
+def test_color_off_with_varying_vibrato_is_refused_before_work_import():
+    before = (acceptance() / 'multi-first.ppsf').read_bytes()
+    with pytest.raises(IntegrationError, match='RELEASE_ONLY_VIBRATO_UNSUPPORTED'):
+        evec_work.plan(before, {'t2:p0:n1'}, {'evec_color': 'none'})
+
+
+def test_actual_host_discards_additional_release_only_tail_curve_points():
+    wanted = (acceptance() / 'release-only-varying-requested.ppsf').read_bytes()
+    host = (acceptance() / 'release-only-varying-host.ppsf').read_bytes()
+    p, c = ppsf.load(wanted); q, d = ppsf.load(host)
+    old = next(e for e in expressions.native_entries(p, c) if e['id'] == 't2:p0:n1')
+    new = next(e for e in expressions.native_entries(q, d) if e['id'] == 't2:p0:n1')
+    assert expressions.evec_summary(old)['color'] == 'none'
+    assert len(old['members'][-1].data.vibrato.amplitude_bp) == 2
+    assert len(new['members'][-1].data.vibrato.amplitude_bp) == 1
+    with pytest.raises(IntegrationError, match='RELEASE_ONLY_VIBRATO_UNSUPPORTED'):
+        expressions.edit_native(wanted, [{'id': old['id'], 'vibrato': expressions.native_vibrato(old)}])

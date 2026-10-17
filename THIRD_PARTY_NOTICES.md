@@ -34,4 +34,4 @@ The original MIDI Remote bridge uses the documented interfaces at https://github
 
 ## Windows OCR interface
 
-The original `native_visual.py` and `assets/windows_ocr.ps1` helper use Windows window messaging, PrintWindow and the installed Windows.Media.Ocr runtime. No OCR implementation, model or Windows component is bundled or downloaded. An available Windows OCR language is required. UI Automation was evaluated with built-in system interfaces for diagnostics; it is not a runtime dependency.
+The original `native_visual.py` and `assets/windows_ocr.ps1` helper use Windows window messaging, PrintWindow and the installed Windows.Media.Ocr runtime. No third-party OCR engine, model or Windows component is bundled or downloaded. An available Windows OCR language is required. The original EVEC caption helper also recognizes exact observed zero/one glyph outlines in the validated default caption font, independently of the requested count; no font file is bundled. UI Automation was evaluated with built-in system interfaces for diagnostics; it is not a runtime dependency.

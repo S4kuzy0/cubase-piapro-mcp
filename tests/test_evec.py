@@ -17,6 +17,20 @@ def fixtures():
     return Path(path)
 
 
+def test_caption_pixel_count_preserves_zero_lost_by_local_chinese_ocr(monkeypatch):
+    location = os.environ.get('CP_TEST_EVEC_ACCEPTANCE')
+    if not location:
+        pytest.skip('Set CP_TEST_EVEC_ACCEPTANCE to local actual caption captures')
+    path = Path(location) / 'evec-count10-panel.bmp'
+    assert piapro_evec._caption_binary_count(path, 1) == 10
+    assert piapro_evec._caption_binary_count(path, 1.5) is None
+    bitmap = piapro_evec.native_visual.Bitmap(path)
+    original_pixel = bitmap.pixel
+    bitmap.pixel = lambda x, y: (0, 0, 0) if (x, y) == (546, 14) else original_pixel(x, y)
+    monkeypatch.setattr(piapro_evec.native_visual, 'Bitmap', lambda path: bitmap)
+    assert piapro_evec._caption_binary_count(path, 1) is None
+
+
 def test_evec_requires_fallback_before_any_host_access(monkeypatch):
     monkeypatch.setattr(singers, '_live_folder', lambda: pytest.fail('No host access without opt-in'))
     with pytest.raises(IntegrationError, match='DIALOG_FALLBACK_REQUIRED'):
@@ -75,9 +89,9 @@ def test_palette_frame_does_not_mistake_a_vibrato_wave_for_its_top(tmp_path, mon
         return {'path': str(bmp), 'crop': crop}
     def recognize(captured):
         if captured['crop'] is None:
-            return {'rows': [{'text': '符设 选中的符数：引', 'box': [210, 105, 350, 116]}] if caption_visible else [
+            return captured | {'rows': [{'text': '符设 选中的符数：引', 'box': [210, 105, 350, 116]}] if caption_visible else [
                 {'text': 'Cancel', 'box': [390, 559, 430, 567]}]}
-        return {'rows': [
+        return captured | {'rows': [
             {'text': '音符设置 选中数量 3', 'box': [160, 10, 580, 32]},
             {'text': 'Col or', 'box': [270, 536, 336, 554]},
             {'text': release_label, 'box': [538, 536, 632, 554]}]}
