@@ -100,5 +100,8 @@
   "installed_distribution": "0.3.0",
   "dependency_check_passed": true,
   "release_wheel_files": 46,
-  "release_wheel_sha256": "0e3352d6dc629bbca036c84b7ad056824ac155a9c9a4a4b475beba9065021b77"
+  "release_wheel_sha256": "0e3352d6dc629bbca036c84b7ad056824ac155a9c9a4a4b475beba9065021b77",
+  "implementation_commit": "0a597b5104ead3f50457272094a24ec365f88876",
+  "private_push_verified": true,
+  "waiting_automation_deleted": true
 }
