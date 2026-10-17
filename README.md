@@ -1,6 +1,6 @@
 # Cubase Piapro MCP
 
-本地运行、优先直接处理工程数据的 MCP。适配 Windows、Cubase LE 14 和 Piapro Studio Standard；Codex 通过 stdio 启动服务。
+本地运行、优先直接处理工程数据的 MCP。当前版本 0.3.0，共 27 个工具；适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
 
 ## 功能
 
@@ -8,9 +8,11 @@
 - 旧版二进制 PPSF：直接读取及修改音符音高、位置、时长、力度、歌词、音素。先要求原始文件精确二进制往返；修改时按长度差保留事件与块的尾部字节；时序修改同步已验证对应关系的编辑器副本，其余块保留。不经通用乐谱模型重建工程。
 - 标准 MIDI：匹配同通道的音符起止事件，修改音高、时长、位置和力度，保留其他消息。
 - CPR：借助 CubaseTools 核心做部分只读解析，保留重名轨道。结果为启发式提取，不能作为完整工程或实时状态。
-- Piapro：动态发现 Windows 窗口、菜单与标准文件对话框，用原生激活通知和窗口消息导入、导出。音符与文件路径不靠坐标操作；Windows 拒绝激活时，可启用仅点击已核验标题栏的焦点后备。WAV 为当前选中 Piapro 音轨。
+- Piapro：动态发现 Windows 窗口、菜单与标准文件对话框，用原生激活通知和窗口消息导入、导出，无须前台切换或鼠标输入。WAV 为当前选中 Piapro 音轨。
+- 歌手/音色：读取本机安装元数据及实际导出的原生歌手定义，直接修改 PPSF 歌手表与两份 Program Change；现场切换先快照，再导入及完整乐谱回读，失败恢复并再次回读。本机六种 Miku 音色的原生赋值与回读均已实测。
 - Cubase：通过 MIDI Remote 回读宿主 UID、轨道类型、名称、乐器和选中状态，按 UID 选择音轨；支持播放、停止、录音及选中通道的音量、声像、静音、独奏。成功需要宿主反馈。
 - 工程与音轨：从本机预置 Piapro 的独立 CPR 模板创建新工程；添加音频、MIDI 或首个 Piapro 乐器轨；复用、选择并打开已有 Piapro。音频轨使用原生控件消息；MIDI/Piapro 的自绘选择器需要显式启用受限的对话框相对指针消息后备。
+- MIDI 路由：读取、修改 MIDI 轨的输入和输出，以及乐器轨的 MIDI 输入。官方 MIDI Remote 没有相应路由属性，使用经过布局核验的 Routing 检视器后备；Windows 本机 OCR、菜单选中项、检视器文本及目标乐器宿主反馈共同核验结果，保留恢复检查点。
 
 文件写入与软件实时状态分别报告。编辑磁盘文件后，需要导入并回读验证，才能确认软件中的状态。
 
@@ -29,10 +31,10 @@ python -m venv .venv
 ### 接入 Codex
 
 ```powershell
-.venv/Scripts/python.exe scripts/install_codex.py --python .venv/Scripts/python.exe --state-dir state --focus-click
+.venv/Scripts/python.exe scripts/install_codex.py --python .venv/Scripts/python.exe --state-dir state
 ```
 
-`--focus-click` 允许受限的标题栏激活后备；省略则在原生激活失败时返回 `FOCUS_REQUIRED`。
+`--focus-click` 是保留的旧兼容设置。当前文件操作、添加对话框及路由使用原生激活通知，不依赖此开关或前台焦点；可省略该参数。
 
 安装脚本先备份现有 Codex 配置，再使用 `codex mcp add` 注册 `cubase-piapro`。本机已经完成注册，当前聊天实际发现工具并执行过调用。`codex mcp get cubase-piapro --json` 可检查注册结果。新配置通常需在新会话中加载；注册成功不能代替工具握手验证。
 
@@ -72,15 +74,24 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 
 `piapro_import` 会先导出当前 PPSF 快照，再从经哈希验证的暂存副本导入。PPSF 覆盖提示仅在快照完成后自动确认；文件错误会返回错误码和快照路径。VSQX/MIDI 的导入可能追加轨道；其返回值明确标记尚未验证。继续调用 `piapro_export` 回读并核对音符和参数，必要时用原 PPSF 快照恢复。空乐曲首次导入时，可设置 `initialize_empty=true`；只有乐谱导出均禁用、无可撤消操作且宿主回传已停止时才接受。
 
+### 歌手与 MIDI 路由
+
+`piapro_list_singers()` 导出现场 PPSF，返回实际逐轨歌手、`revision`、安装元数据与 `captured_singers`。用其中的 `singer_id`、Piapro 内部 `track_index` 和最新 `revision` 调用 `piapro_set_singer`；成功要求目标歌手及所有其他音乐数据回读通过。它不会自动保存 Cubase 工程。`piapro_list_singers(path=...)` 读取文件并缓存真实定义；`set_ppsf_singer` 仅写文件，需要来源 `expected_sha256`，不会更新现场。其他声库先从本机实际 PPSF 捕获定义，或在 Piapro 选择一次后读取；安装记录本身不证明授权或兼容性。
+
+路由先调用 `cubase_list_tracks`，以宿主 UID 和最新清单 `revision` 调用 `cubase_get_midi_routing(..., allow_dialog_fallback=true)`。将返回的 `host_revision`、路由 `revision` 和可选项的 `route:...` ID 传给 `cubase_set_midi_routing` 的 `expected_revision`、`expected_routing_revision`、`input_route_id`/`output_route_id`。ID 分别绑定方向与端点，不能自行拼造。乐器轨只支持 MIDI 输入，输出请求会在打开选择器前拒绝。
+
+路由后备目前要求 Cubase 14 英文界面、展开的 Routing 检视器及足够大的窗口，使用窗口相对指针消息，不移动系统鼠标。仅提供能唯一识别并回读的当前菜单项；专用 MCP 端口及尚未核实排除桥接端口的 All MIDI Inputs 禁止新选入。失败结果含检查点和实际恢复核验状态，恢复未通过时先检查现场，勿直接重试。
+
 备份、快照与本机安装记录位于 `CUBASE_PIAPRO_STATE_DIR`，未设置时位于本机应用数据目录中的 `CubasePiaproMCP`。备份恢复使用 `list_recovery_copies` 与 `restore_recovery_copy`。恢复当前版本前也会再次备份。
 
 ## 限制
 
 - 不提供任意 CPR 原生写入、Piapro NT ZIP 编辑、声库逆向解析或音色模型提取。
 - 原生 PPSF 插入/删除音符及批量新增控制点暂未开放；这些操作使用 VSQX。原生时序修改要求目标音符的两份时序一致，并保持在区段原有音符终点范围内；否则改用 VSQX。
+- 原生歌手写入只接受精确字节往返、已知静态 Program Change 布局和本机捕获定义；两份索引不一致、共享引用或带时间的歌手自动化均拒绝。切换会重载当前 Piapro 乐曲。
 - Piapro 乐谱工具要求恰好一个原生编辑器；`cubase_load_piapro` 可加载首个实例或复用已有实例。Piapro 每台电脑仅支持一个实例，包含其他工程和 DAW；同一工程的重复添加会在发送宿主命令前被拒绝。
 - 实时清单覆盖前 64 个音频、乐器、采样器和 MIDI 混音通道，含隐藏通道，不含文件夹和输入/输出通道。MIDI 轨的 `plugin` 可以表示其输出所连接的乐器，不代表插件实例的所有权。
-- 添加 MIDI/Piapro 的后备仅验证 Cubase 14 英文对话框及其 DPI 布局。输入路由请求为 `Not Connected`，没有独立的宿主路由回读，不能把选择器关闭当作路由已核实。音频轨沿用 Cubase 默认输入/输出。
+- 添加 MIDI/Piapro 的后备仅验证 Cubase 14 英文对话框及其 DPI 布局。添加流程中的输入请求仍没有独立回读，需另用路由工具验证；音频轨沿用 Cubase 默认输入/输出。新路由工具的结果来自 UI 回读，官方宿主路由接口并不存在；未验证外接硬件、多层或滚动菜单、所有语言及任意声库。
 - 部分插件自绘对话框和其他语言版本尚未验证；遇到未支持对话框返回明确错误，不假称成功。
 - 未保存的 Cubase 状态不会出现在 CPR 文件中。第三方插件的全部内部参数也未必能读取。
 - 同时从其他聊天或手工修改同一现场会影响结果；文件哈希和 MCP 进程间锁不等于软件级事务锁。
@@ -94,8 +105,4 @@ loopMIDI 主程序可安装到其他数据盘；迁移时保留上述端口名�
 
 测试覆盖参数与未知 XML 保留、旧哈希拒绝、备份恢复、MIDI 起止配对、控制曲线、新乐谱和真实 stdio MCP 握手。旧版 PPSF 测试通过环境变量 `CP_TEST_PPSF` 指向本机原始资料；原始资料不随项目分发。
 
-22 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，本次故障隔离见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-### 开发中的歌手与 MIDI 路由扩展
-
-`singers.py` 已实现原生 PPSF 歌手表、逐轨 Program Change 的一致性检查、采用实际导出定义的歌手赋值，以及快照/导入/回读/失败恢复流程。包含八项新增测试，完整离线测试共三十八项通过；尚未完成宿主 A/B 验收，未注册为新增 MCP 工具，正式服务仍为上述二十二个工具。未知或带歌手自动化事件的布局拒绝写入。MIDI 输入输出路由仍在接口与界面后备验证阶段。现场测试按用户安排等待另一个训练任务完成，详情见项目记忆。
+27 个工具及示例见 [工具与架构](docs/architecture.md)。实际验证状态见 [验证记录](docs/validation.md)，查询边界修复见 [轨道查询回归](docs/crash-regression.md)，架构与决策见 [项目记忆](docs/project-memory.md)。第三方来源和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

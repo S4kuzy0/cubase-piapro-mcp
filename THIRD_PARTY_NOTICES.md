@@ -31,3 +31,7 @@ The official MCP Python SDK, lxml, mido, python-rtmidi, construct and construct-
 ## Steinberg interface reference
 
 The original MIDI Remote bridge uses the documented interfaces at https://github.com/steinbergmedia/midiremote_api_doc . The documentation was consulted as an API reference; no Steinberg implementation or documentation source is vendored. Cubase, Piapro, commercial plugins, voicebanks and local CPR templates are not distributed with this project.
+
+## Windows OCR interface
+
+The original `native_visual.py` and `assets/windows_ocr.ps1` helper use Windows window messaging, PrintWindow and the installed Windows.Media.Ocr runtime. No OCR implementation, model or Windows component is bundled or downloaded. An available Windows OCR language is required. UI Automation was evaluated with built-in system interfaces for diagnostics; it is not a runtime dependency.

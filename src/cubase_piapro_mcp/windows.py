@@ -1,4 +1,4 @@
-"""Piapro native menus/dialogs with optional verified title-bar activation."""
+"""Piapro native menus/dialogs and bounded background activation notices."""
 
 from __future__ import annotations
 
@@ -45,7 +45,12 @@ def windows():
     images = {}
 
     def visit(hwnd, _):
-        record = window_record(hwnd)
+        try:
+            record = window_record(hwnd)
+        except Exception as exc:
+            if getattr(exc, "winerror", None) == 1400:
+                return True  # A transient window may close during enumeration.
+            raise
         pid = record["pid"]
         if pid not in images:
             try:
@@ -85,7 +90,11 @@ def children(hwnd):
     found = []
 
     def visit(child, _):
-        found.append(window_record(child))
+        try:
+            found.append(window_record(child))
+        except Exception as exc:
+            if getattr(exc, "winerror", None) != 1400:
+                raise
         return True
 
     wg.EnumChildWindows(hwnd, visit, None)
@@ -196,7 +205,17 @@ def dialogs(pid):
 def activate_editor(hwnd):
     if piapro_root()["handle"] != hwnd or dialogs(window_record(hwnd)["pid"]):
         raise IntegrationError("FOCUS_TARGET_CHANGED", "The editor or dialog state changed before activation.")
-    return activate_window(hwnd)
+    return notify_activation(hwnd)
+
+
+def notify_activation(hwnd):
+    """Notify a verified Cubase window without taking desktop focus or moving input."""
+    _, wg, _ = api()
+    matches = [window for window in windows() if window["handle"] == hwnd and window["visible"]]
+    if len(matches) != 1 or not wg.IsWindowEnabled(hwnd):
+        raise IntegrationError("FOCUS_TARGET_CHANGED", "The native target is no longer visible/enabled.")
+    wg.SendMessageTimeout(hwnd, 0x6, 1, 0, 2, 1000)
+    return "native_activation_notice"
 
 
 def activate_window(hwnd):

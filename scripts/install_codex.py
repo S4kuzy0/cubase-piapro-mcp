@@ -20,7 +20,7 @@ def main():
     parser.add_argument(
         "--focus-click",
         action="store_true",
-        help="Allow one verified editor title-bar click if Windows denies native activation",
+        help="Retain the legacy focus-click setting; current native file operations do not use it",
     )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]

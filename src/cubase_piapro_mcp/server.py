@@ -10,7 +10,7 @@ from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict
 
-from . import __version__, projects, storage, live_midi, windows, cubase, project_templates
+from . import __version__, projects, storage, live_midi, windows, cubase, project_templates, singers, routing
 
 mcp = MCPServer(
     "cubase-piapro",
@@ -23,6 +23,8 @@ mcp = MCPServer(
         "List live tracks to obtain real host IDs and the current revision before track operations. "
         "Create projects from local standalone templates; never close an existing project implicitly. "
         "Piapro supports only one instance per computer: reuse the existing instance. "
+        "Piapro singer track_index is an INTERNAL score track, separate from Cubase host UIDs. "
+        "Routing uses an explicitly enabled bounded UI fallback and actual readback; reserved MCP ports cannot be music routes. "
         "Do not claim success when verified/connected is false or an error is returned."
     ),
 )
@@ -67,17 +69,20 @@ def get_capabilities() -> dict:
     return {
         "version": __version__,
         "transport": "stdio",
-        "file_editing": ["vsqx3", "vsqx4", "legacy-ppsf-notes", "standard-midi"],
+        "file_editing": ["vsqx3", "vsqx4", "legacy-ppsf-notes-and-singers", "standard-midi"],
         "curves": "VSQX PIT/PBS/DYN/BRE/BRI/CLE/GEN/OPE/POR",
         "cpr": "partial read-only",
-        "native_ppsf_gate": "exact binary roundtrip; sizes preserve native tails; only events and matching editor timing copies may change",
+        "native_ppsf_gate": "exact binary roundtrip and native tail preservation; notes change events/matching editor copies; singers change only the table and two verified program copies",
         "live_control": "selected channel and transport over MIDI Remote, only if live feedback is available",
         "live_tracks": "host-cache-1 handshake, protocol-3 cached host UIDs/names/types/plugin identity, selection, and single audio/MIDI/Piapro additions; first 64 supported mixer tracks",
         "project_creation": "byte-copy a registered local standalone CPR template into a new directory; open only when no project is already open",
         "piapro_loading": "reuse/select/open the single existing instance, or add its first instrument track",
-        "piapro_ui": "dynamic Win32 menus and standard dialogs; optional verified title-bar click for activation only",
+        "piapro_ui": "native activation notices, dynamic Win32 menus and standard dialogs; no foreground or pointer input for file operations",
+        "piapro_singers": "native PPSF table and synchronized program copies; cached actual singer definitions, optimistic live revision, snapshot/import/readback and recovery",
+        "midi_routing": "Cubase 14 English Routing inspector; host UID authorization, local Windows OCR, verified menu/field readback; instrument MIDI input and MIDI-track input/output",
         "cubase_dialog_fallback": "explicit allow_dialog_fallback for validated Cubase 14 English instrument/input selectors: DPI-scaled dialog-relative pointer messages, native search edit and key messages",
         "focus_click_enabled": os.environ.get("CUBASE_PIAPRO_FOCUS_CLICK") == "1",
+        "file_operations_require_foreground": False,
         "backups": True,
         "concurrency": "required source SHA-256 plus per-target cross-process locks",
         "limitations": [
@@ -88,6 +93,9 @@ def get_capabilities() -> dict:
             "Piapro cannot run multiple plugin instances on the same computer (E10)",
             "New project creation does not close an existing project; template plugins/voicebanks must already be installed",
             "Additions are live/unsaved; MIDI input selection has no independent host routing readback",
+            "Routing is a UI fallback, not a native routing API; only recognized current routes are offered",
+            "Dedicated MCP ports and unverified All MIDI Inputs are not selectable music routes",
+            "Singer writes require exact native roundtrip, known static program layout and a captured local definition; no timed singer automation",
         ],
         "state_dir": str(storage.state_dir()),
     }
@@ -291,6 +299,41 @@ def piapro_import(
 ) -> dict:
     """Import an immutable score copy after exporting a native recovery snapshot. Export/readback is required. VSQX/MIDI may append tracks. initialize_empty permits a first import only when empty-menu state and stopped MIDI host feedback agree."""
     return windows.import_file(path, expected_sha256, allow_empty=initialize_empty)
+
+
+@mcp.tool(annotations=WRITE)
+def piapro_list_singers(path: str | None = None) -> dict:
+    """List native singer fingerprints, Piapro INTERNAL track assignments and captured local profiles. With path, inspect/capture a legacy PPSF without UI. Without path, export the actual stopped live editor and return its revision. Installed metadata does not prove activation. Definitions contain settings, never voicebank audio."""
+    return singers.list_from_file(path) if path is not None else singers.list_live()
+
+
+@mcp.tool(annotations=WRITE)
+def set_ppsf_singer(path: str, output_path: str, expected_sha256: str,
+                    track_index: int, singer_id: str) -> dict:
+    """Assign a captured native singer to ONE internal PPSF track, retaining all music and unrelated settings. Requires current file SHA-256 and singer ID from piapro_list_singers. No live update. Unknown/timed/shared program layouts are refused; same-path overwrite has a verified backup."""
+    return singers.set_file(path, output_path, expected_sha256, track_index, singer_id)
+
+
+@mcp.tool(annotations=WRITE)
+def piapro_set_singer(track_index: int, singer_id: str, expected_revision: str) -> dict:
+    """Change ONE Piapro INTERNAL track singer using a captured native definition. Use latest piapro_list_singers revision, not a Cubase UID/revision. Requires stopped host feedback; snapshots before change, imports native PPSF, verifies all track assignments and unrelated song/plugin data, attempts verified recovery on failure. Changes remain unsaved in Cubase; phonemes/lyrics stay unchanged."""
+    return singers.set_live(track_index, singer_id, expected_revision)
+
+
+@mcp.tool(annotations=WRITE)
+def cubase_get_midi_routing(track_id: str, expected_revision: str,
+                            allow_dialog_fallback: bool = False) -> dict:
+    """Select a fresh live host UID and read recognized MIDI routes through the Cubase 14 English Routing inspector. Explicit UI fallback required: local Windows OCR and bounded window-relative messages; no physical cursor. Requires stopped transport and an expanded supported inspector. Returns actual selected labels, route IDs, host_revision and routing revision. Instrument tracks expose input only; MIDI tracks expose both. This is UI readback, not a native routing API."""
+    return routing.get_routing(track_id, expected_revision, allow_dialog_fallback)
+
+
+@mcp.tool(annotations=WRITE)
+def cubase_set_midi_routing(track_id: str, expected_revision: str, expected_routing_revision: str,
+                            input_route_id: str | None = None, output_route_id: str | None = None,
+                            allow_dialog_fallback: bool = False) -> dict:
+    """Set current route IDs from cubase_get_midi_routing, with its host_revision and routing revision. Explicit bounded UI fallback required. Reopens menus to verify actual input/output and retains a recovery checkpoint. Reserved MCP ports and unverified All MIDI Inputs are blocked. MIDI output applies ONLY to MIDI tracks; never replaces an instrument slot. No automatic Cubase save. On failure inspect recovery status before retrying."""
+    return routing.set_routing(track_id, expected_revision, expected_routing_revision,
+                               input_route_id, output_route_id, allow_dialog_fallback)
 
 
 @mcp.tool(annotations=WRITE)

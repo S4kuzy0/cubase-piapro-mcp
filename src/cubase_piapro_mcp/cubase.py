@@ -102,7 +102,7 @@ class AddTrackDialog:
         self.anchor = None
 
     def prepare_fallback(self):
-        self.focus_method = windows.activate_window(self.root["handle"])
+        self.focus_method = windows.notify_activation(self.root["handle"])
         api, gui, _ = windows.api()
         version = api.GetFileVersionInfo(self.root["executable"], "\\")["FileVersionMS"] >> 16
         edit = _only_edit(self.root["handle"])

@@ -14,6 +14,8 @@ Codex 通过本机 stdio 启动官方 Python MCP SDK 服务。文件处理不需
 | Cubase 现场 | MIDI Remote 官方宿主 API、loopMIDI | 宿主 UID、轨道选择、走带和混音；前 64 个支持通道 |
 | 工程创建 | 注册的独立 CPR 原字节复制、宿主打开与回读 | 仅新目录；不修改 CPR 二进制，不隐式关闭工程 |
 | 音轨添加 | MIDI Remote AddTrack 命令、原生 Edit/Button | MIDI/Piapro 自绘选择器需显式启用受限布局后备 |
+| 歌手 | 实际 PPSF SingerEntry、双 Program Change 定点写入 | 仅已捕获定义与静态布局；快照、导入、完整回读及失败恢复 |
+| MIDI 路由 | Win32 窗口消息、Windows.Media.Ocr、菜单与检视器回读 | Cubase 14 英文受限布局；乐器轨只读写 MIDI 输入 |
 
 PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映射与原始时序一致时同步两处；其他插件及未知块保持原内容。原生时序操作不延长区段原有音符终点，扩展使用 VSQX。
 
@@ -21,7 +23,7 @@ PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映�
 
 | 工具 | 用途 |
 |---|---|
-| `get_capabilities` | 当前实现、限制、状态目录及标题栏激活开关 |
+| `get_capabilities` | 当前版本、实现、限制、状态目录及激活策略 |
 | `inspect_project` | 工程摘要、声库、音符分页及 SHA-256 |
 | `edit_notes` | 修改已有音符的支持字段 |
 | `transpose_notes` | 全部或指定轨道移调 |
@@ -43,6 +45,11 @@ PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映�
 | `cubase_select_track` | 使用当前 revision 与实际 UID 选轨，连续回传核验 |
 | `cubase_add_track` | 添加单个 audio/midi/piapro 轨，保存原清单检查点并核验增量 |
 | `cubase_load_piapro` | 复用、选中并打开已有 Piapro，或添加首个实例；核验原生编辑器及菜单 |
+| `piapro_list_singers` | 有路径时读取原生 PPSF 并捕获定义；无路径时导出现场及歌手 revision |
+| `set_ppsf_singer` | 按来源 SHA-256 修改文件歌手，不更新现场 |
+| `piapro_set_singer` | 按 Piapro 内部轨索引、真实定义 ID 与现场 revision 切换，完整回读及失败恢复 |
+| `cubase_get_midi_routing` | 按宿主 UID 与清单 revision 读取实际输入/输出、可识别选项及路由 revision |
+| `cubase_set_midi_routing` | 按双 revision 与路由 ID 修改，重新打开选择器回读并保留恢复检查点 |
 
 ## 写入与回读约定
 
@@ -54,11 +61,21 @@ PPSF 时序既存在 Events，也存在 EditorDatas。仅在目标音符的映�
 
 VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在已保存实际快照后继续。首次空乐曲可显式设置 `initialize_empty=true`，同时要求导出与撤消不可用、宿主已停止。导入失败可能清空 Piapro 当前乐曲，可用返回的快照重新导入；此时可使用经过核验的空乐曲初始化路径。
 
-## 现场操作与焦点
+## 歌手与路由事务
 
-默认只请求原生激活。Windows 拒绝切换前台时，返回 `FOCUS_REQUIRED`。安装时加 `--focus-click`，或设置 `CUBASE_PIAPRO_FOCUS_CLICK=1`，可启用受限后备：检查编辑器进程、无模态对话框、标题栏遮挡及窗口几何后，只点击标题栏取得焦点，并恢复原鼠标位置和置顶状态。音符、歌词、曲线和文件路径均不通过坐标操作。本机已启用此选项。
+`singer:...` 是实际原生 SingerEntry 内容的指纹，不使用注册表序号授权写入。注册表只提供安装元数据。Program Change 的 `parameters` 与 `vfxc` 两份索引须一致，相关 automation clip 不得有事件；共享引用或未知布局拒绝。现场歌手 revision 覆盖除 EditorDatas 外的原生数据块；导入回读允许歌手表重新编号，但要求所有音符、其他轨歌手、插件及项目设置一致。
+
+歌手工具的 `track_index` 是 Piapro 内部声乐轨，Cubase 工具的 `uid:...` 是宿主通道，两者不可替换。`route:...` 按方向与端点标识；路由 revision 包含当前选择、可选择项和宿主清单 revision，不依赖 OCR 坐标或菜单顺序。乐器输出端点还绑定真实所有者 UID，MIDI 轨的插件反馈变化只允许发生在本次目标轨。
+
+每个现场写入持有跨进程 live-daw 锁。歌手保留原生快照并在失败后重新导入、导出核验；路由写入前保存 JSON 检查点，提交后重开未过滤菜单并与检视器核对。Piapro 输出再核对宿主插件身份。失败恢复只恢复本次请求的方向，但成功声明必须同时核对两个方向，不能忽略未请求字段的意外变化。人工及其他应用不受 MCP 锁约束。
+
+## 现场操作与激活
+
+当前操作向已核验的 Cubase/Piapro 窗口发送有超时的 WM_ACTIVATE 通知，无须切换前台或物理鼠标。文件导入、导出与歌手切换已在其他应用处于前台时实测。`activate_window` 与 `--focus-click` 仅保留旧兼容用途，当前正式路径不调用标题栏点击。
 
 模板复制及按 UID 选轨不使用鼠标。添加音频轨通过原生控件消息；添加 MIDI/Piapro 时，自绘选择器没有可用的原生列表接口，需要 `allow_dialog_fallback=true`。后备以 Name 原生 Edit 为锚，核验 Cubase 14 英文布局、窗口尺寸和 DPI 后投递对话框相对指针消息；搜索内容、轨道名和 Add Track 提交使用原生控件消息。输入路由缺少独立回读，新增轨道尚未保存。MCP 不提供任意桌面点击工具。
+
+路由选择器无 HMENU，系统 UIA 只暴露搜索 Edit；WM_SETTEXT 不可靠触发内部过滤模型，因此只选择未过滤菜单中的唯一识别项。`native_visual.py` 用 PrintWindow 捕获已核验窗口，调用随包的原始 PowerShell 辅助脚本使用 Windows 内置 OCR，无下载模型或网络识别。检视器需通过标题、行位置及实际下拉三角形定位；取消向弹窗本身投递 Escape。未知、多义、被截断或滚动菜单不推测选择。本机英语 OCR 不可用时使用用户语言识别器，仅对已知静态标签做受限归一化。
 
 ## 反馈与故障处理
 
@@ -83,6 +100,15 @@ VSQX/MIDI 导入会追加轨道。PPSF 导入替换当前乐曲；确认仅在�
 | `PIAPRO_ALREADY_LOADED` | 调用加载工具复用已有实例，避免 E10 |
 | `TRACK_OPERATION_INCOMPLETE` | 操作可能部分执行；先检查现场与返回的检查点，勿盲目重复添加 |
 | `UNSUPPORTED_ADD_TRACK_LAYOUT` | 当前版本、语言或 DPI 布局未通过校验，未发送内容坐标输入 |
+| `SINGER_LAYOUT_UNSUPPORTED` | 未知或带时间自动化的歌手布局；没有原生写入 |
+| `SINGER_NOT_CAPTURED` | 从本机实际 PPSF 捕获定义，再使用返回 ID |
+| `PIAPRO_STATE_CHANGED` | 重新读取现场歌手 revision |
+| `SINGER_CHANGE_INCOMPLETE` | 查看原生快照及实际恢复核验状态，先检查现场 |
+| `ROUTING_CHANGED` | 重新读取路由，使用新的双 revision |
+| `MIDI_OUTPUT_NOT_APPLICABLE` | 乐器槽不能当作 MIDI 输出；只为乐器轨设置 MIDI 输入 |
+| `ROUTING_OPTION_UNAVAILABLE` | 请求项不可识别、歧义、保留控制端口或未验证的 All MIDI Inputs |
+| `ROUTING_CHANGE_INCOMPLETE` | 查看检查点及双向恢复回读，未通过时不得盲目重试 |
+| `UNSUPPORTED_ROUTING_LAYOUT` | 展开 Routing 并使用已验证的英文 Cubase 14 布局；其他布局拒绝 |
 
 ## 来源与部署
 
