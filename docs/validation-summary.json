@@ -82,7 +82,7 @@
     "Existing chats can cache older tool discovery; a fresh registered process loads 31 tools"
   ],
   "private_repo": "https://github.com/S4kuzy0/cubase-piapro-mcp",
-  "private_push_verified": false,
+  "private_push_verified": true,
   "previous_release": {
     "date_beijing": "2026-10-17",
     "version": "0.3.0",
@@ -190,5 +190,6 @@
     "private_push_verified": true,
     "waiting_automation_deleted": true
   },
-  "release_source_files_checked": 42
+  "release_source_files_checked": 42,
+  "implementation_commit": "a5dcf37715808bf89e380acc795952b9167dd4d6"
 }
