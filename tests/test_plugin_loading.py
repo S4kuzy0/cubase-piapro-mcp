@@ -84,3 +84,41 @@ def test_loaded_plugin_comparison_preserves_all_other_groups():
     assert plugin_loading.verify_insert(before, after, "insert.0")
     after["eq"]["values"] = [{"id": "gain", "value": .8}]
     assert not plugin_loading.verify_insert(before, after, "insert.0")
+
+
+def test_actual_discard_question_ocr_keeps_exact_subject_identity():
+    from cubase_piapro_mcp import plugin_ui
+    rows = [{"text": 'Discard 訓 changes t0 Piapro Stud io VSTi 01 _ RoomWorks S E"?'},
+            {"text": "Discard"}, {"text": "Keep"}]
+    assert plugin_ui.discard_question_matches(rows, "Piapro Studio VSTi 01", "RoomWorks SE", "zh-Hans-CN")
+    assert not plugin_ui.discard_question_matches(rows, "Piapro Studio VSTi 02", "RoomWorks SE", "zh-Hans-CN")
+    assert not plugin_ui.discard_question_matches(rows, "Piapro Studio VSTi 01", "RoomWorks", "zh-Hans-CN")
+
+
+@pytest.mark.parametrize("text", [
+    'Discard all changes to "Other - RoomWorks SE"?',
+    'Discard all changes to "Voice - Other"?',
+    'Discard all changes to "Voice - RoomWorks SE"? and another object',
+    'Discard all changes to "Voice - RoomWorks SE"',
+])
+def test_discard_rejects_wrong_or_incomplete_questions(text):
+    from cubase_piapro_mcp import plugin_ui
+    assert not plugin_ui.discard_question_matches([{"text": text}], "Voice", "RoomWorks SE", "en-US")
+
+
+def test_discard_separator_alias_does_not_change_punctuation_inside_names():
+    from cubase_piapro_mcp import plugin_ui
+    rows = [{"text": 'Discard all changes to "Voice_A _ RoomWorks SE"?'}]
+    assert not plugin_ui.discard_question_matches(rows, "Voice-A", "RoomWorks SE", "zh-Hans-CN")
+
+
+def test_canonical_discard_question_remains_supported():
+    from cubase_piapro_mcp import plugin_ui
+    rows = [{"text": 'Discard all changes to "Voice - RoomWorks SE"?'}]
+    assert plugin_ui.discard_question_matches(rows, "Voice", "RoomWorks SE", "en-US")
+
+
+def test_duplicate_discard_questions_are_ambiguous():
+    from cubase_piapro_mcp import plugin_ui
+    rows = [{"text": 'Discard all changes to "Voice - RoomWorks SE"?'}] * 2
+    assert not plugin_ui.discard_question_matches(rows, "Voice", "RoomWorks SE", "en-US")

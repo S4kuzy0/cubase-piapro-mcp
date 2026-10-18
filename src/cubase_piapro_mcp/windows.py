@@ -12,6 +12,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .errors import IntegrationError
+from . import host_health
 from .storage import digest, file_lock, state_dir
 
 
@@ -71,6 +72,7 @@ def windows():
 
 
 def piapro_root():
+    host_health.require_healthy()
     matches = [
         w
         for w in windows()

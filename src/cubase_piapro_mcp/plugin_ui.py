@@ -164,6 +164,20 @@ def choose_insert(root, slot, name, folder, refresh, *, empty=True):
         _cancel(popup, edit)
 
 
+def discard_question_matches(rows, track_name, plugin_name, language):
+    prefixes = ["discardallchangesto"]
+    separator = "-"
+    if language == "zh-Hans-CN":
+        # Observed static OCR errors. Only the delimiter between exact names
+        # may vary; punctuation inside either dynamic name stays literal.
+        prefixes.append("discard訓changest0")
+        separator = "[-_]"
+    prefix = "(?:" + "|".join(re.escape(text) for text in prefixes) + ")"
+    subject = re.escape(label(track_name)) + separator + re.escape(label(plugin_name))
+    pattern = prefix + '["“]?' + subject + '["”]?\\?'
+    return sum(bool(re.fullmatch(pattern, label(row["text"]))) for row in rows) == 1
+
+
 def discard_new_plugin(root, track_name, plugin_name, folder):
     """Only for removing this transaction's plugin from a proven originally empty slot."""
     _, gui, _ = windows.api()
@@ -178,8 +192,7 @@ def discard_new_plugin(root, track_name, plugin_name, folder):
     if sorted(c["title"] for c in buttons) != ["Discard", "Keep"]:
         raise IntegrationError("PLUGIN_RECOVERY_DIALOG_UNVERIFIED", "An unrelated host question is open.")
     recognized = native_visual.recognize(native_visual.capture(dialog, folder / "discard.bmp", scale=2))
-    text = label(" ".join(r["text"] for r in recognized["rows"]))
-    if "discardallchangesto" not in text or label(track_name + " - " + plugin_name) not in text:
+    if not discard_question_matches(recognized["rows"], track_name, plugin_name, recognized["language"]):
         raise IntegrationError("PLUGIN_RECOVERY_DIALOG_UNVERIFIED", "The question does not name this transaction's track/plugin.")
     evec_focus.require_desktop()
     gui.SendMessage(next(c for c in buttons if c["title"] == "Discard")["handle"], 0xF5, 0, 0)

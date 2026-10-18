@@ -8,6 +8,7 @@ import json
 import mido
 
 from .errors import IntegrationError
+from . import host_health
 from .storage import digest, file_lock, state_dir
 
 INPUT_NAME = "CP MCP From Cubase"
@@ -22,6 +23,7 @@ def ports():
 
 
 def selected_ports():
+    host_health.require_healthy()
     available = ports()
     inputs = [p for p in available["inputs"] if INPUT_NAME in p]
     outputs = [p for p in available["outputs"] if OUTPUT_NAME in p]
@@ -33,13 +35,18 @@ def selected_ports():
     return inputs[0], outputs[0]
 
 
+def send_to_host(outgoing, message):
+    host_health.require_healthy()
+    outgoing.send(message)
+
+
 def _query(incoming, outgoing, timeout=1.5):
     nonce = random.randint(1, 126)
     for _ in incoming.iter_pending():
         pass
-    outgoing.send(mido.Message("control_change", channel=15, control=119, value=0))
+    send_to_host(outgoing, mido.Message("control_change", channel=15, control=119, value=0))
     time.sleep(0.02)
-    outgoing.send(mido.Message("control_change", channel=15, control=119, value=nonce))
+    send_to_host(outgoing, mido.Message("control_change", channel=15, control=119, value=nonce))
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         for message in incoming.iter_pending():
@@ -119,12 +126,12 @@ def control(action: str, value: float | None = None):
                 "selected_track_only": True,
             }
         wire = 127 if action in ("play", "stop", "record") else round(wanted * 127)
-        outgoing.send(
+        send_to_host(outgoing,
             mido.Message("control_change", channel=15, control=cc, value=wire)
         )
         if action in ("play", "stop", "record"):
             time.sleep(0.05)
-            outgoing.send(
+            send_to_host(outgoing,
                 mido.Message("control_change", channel=15, control=cc, value=0)
             )
         stable = 0
@@ -152,11 +159,11 @@ def control(action: str, value: float | None = None):
 
 
 def _pulse(outgoing, cc, channel=15):
-    outgoing.send(mido.Message("control_change", channel=channel, control=cc, value=0))
+    send_to_host(outgoing, mido.Message("control_change", channel=channel, control=cc, value=0))
     time.sleep(0.02)
-    outgoing.send(mido.Message("control_change", channel=channel, control=cc, value=127))
+    send_to_host(outgoing, mido.Message("control_change", channel=channel, control=cc, value=127))
     time.sleep(0.05)
-    outgoing.send(mido.Message("control_change", channel=channel, control=cc, value=0))
+    send_to_host(outgoing, mido.Message("control_change", channel=channel, control=cc, value=0))
 
 
 def decode_inventory(frames: dict[int, tuple[int, ...]], total: int) -> dict:
@@ -228,9 +235,9 @@ def _probe_inventory_driver(incoming, outgoing, timeout=.8):
     nonce = random.randint(1, 126)
     for _ in incoming.iter_pending():
         pass
-    outgoing.send(mido.Message("control_change", channel=15, control=116, value=0))
+    send_to_host(outgoing, mido.Message("control_change", channel=15, control=116, value=0))
     time.sleep(.02)
-    outgoing.send(mido.Message("control_change", channel=15, control=116, value=nonce))
+    send_to_host(outgoing, mido.Message("control_change", channel=15, control=116, value=nonce))
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         for message in incoming.iter_pending():
@@ -250,9 +257,9 @@ def _inventory(incoming, outgoing, timeout=3.0, reset_bank=False):
     nonce = random.randint(1, 126)
     for _ in incoming.iter_pending():
         pass
-    outgoing.send(mido.Message("control_change", channel=15, control=118, value=0))
+    send_to_host(outgoing, mido.Message("control_change", channel=15, control=118, value=0))
     time.sleep(0.02)
-    outgoing.send(mido.Message("control_change", channel=15, control=118, value=nonce))
+    send_to_host(outgoing, mido.Message("control_change", channel=15, control=118, value=nonce))
     frames = {}
     total = None
     deadline = time.monotonic() + timeout

@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import live_midi, project_templates, windows
+from . import live_midi, project_templates, windows, host_health
 from .errors import IntegrationError
 from .storage import digest, file_lock, read_file, state_dir, write_result
 
@@ -25,6 +25,7 @@ def project_windows():
 
 
 def project_root():
+    host_health.require_healthy()
     matches = project_windows()
     if len(matches) != 1:
         raise IntegrationError("CUBASE_PROJECT_NOT_UNIQUE", "Open exactly one Cubase project. This adapter is validated with Cubase 14 English project windows.")
@@ -366,6 +367,8 @@ def create_project(template_id: str, project_directory: str, name: str | None = 
                    open_project=True, timeout=40):
     if not 1 <= timeout <= 45:
         raise IntegrationError("INVALID_TIMEOUT", "Project startup timeout must be between 1 and 45 seconds.")
+    if open_project:
+        host_health.require_healthy()
     with file_lock(state_dir() / "live-daw"):
         if open_project and project_windows():
             raise IntegrationError("PROJECT_ALREADY_OPEN", "Save/close the current project first. This template workflow never closes an existing project or acknowledges discard prompts.")

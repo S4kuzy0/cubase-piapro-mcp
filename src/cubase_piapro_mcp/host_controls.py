@@ -78,11 +78,11 @@ def _query(incoming, outgoing, group):
         raise IntegrationError("INVALID_CONTROL_GROUP", "Choose summary, eq, sends, instrument or insert.0 through insert.3.")
     for _ in incoming.iter_pending():
         pass
-    outgoing.send(mido.Message("control_change", channel=15, control=113, value=GROUPS.index(group)))
-    outgoing.send(mido.Message("control_change", channel=15, control=114, value=0))
+    live_midi.send_to_host(outgoing, mido.Message("control_change", channel=15, control=113, value=GROUPS.index(group)))
+    live_midi.send_to_host(outgoing, mido.Message("control_change", channel=15, control=114, value=0))
     time.sleep(.02)
     nonce = random.randint(1, 126)
-    outgoing.send(mido.Message("control_change", channel=15, control=114, value=nonce))
+    live_midi.send_to_host(outgoing, mido.Message("control_change", channel=15, control=114, value=nonce))
     return _receive(incoming, nonce)
 
 
@@ -227,9 +227,11 @@ def _dispatch(before, changes):
             raise IntegrationError("CONTROL_STATE_CHANGED", "Host values changed before dispatch; nothing was sent.")
         # Exactly once. Even a missing response must never trigger an automatic resend.
         try:
-            outgoing.send(mido.Message("sysex", data=[125, 67, 80, 7, nonce, 0, 1] + payload))
+            live_midi.send_to_host(outgoing, mido.Message("sysex", data=[125, 67, 80, 7, nonce, 0, 1] + payload))
             return _receive(incoming, nonce, 5) | {"operation_id": request["operation_id"]}
         except Exception as exc:
+            if isinstance(exc, IntegrationError) and exc.code in ("HOST_CRASH_DETECTED", "HOST_HEALTH_UNVERIFIED"):
+                raise  # The send guard refused before the payload reached the output.
             raise IntegrationError("CONTROL_DISPATCH_UNKNOWN", "The request may have reached Cubase; it was not re-sent. " + str(exc)) from exc
 
 
