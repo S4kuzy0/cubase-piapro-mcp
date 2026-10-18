@@ -1,0 +1,4 @@
+# Install matching Torch/torchaudio CUDA wheels separately; keep this environment isolated.
+audio-separator[cpu]==0.47.0
+# Upstream imports this directly; librosa 1.0 no longer supplies it transitively.
+audioread==3.1.0

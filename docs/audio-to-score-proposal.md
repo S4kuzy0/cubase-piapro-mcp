@@ -1,6 +1,6 @@
-# 人声分离、歌声转谱与歌词对齐：待选择方案
+# 人声分离、歌声转谱与歌词对齐：选型记录
 
-调研日期：2026-10-18，北京时间。状态：只读调研完成，尚未选择架构、编写实现、安装依赖、下载模型或启动 DAW。
+调研日期：2026-10-18，北京时间。用户随后已明确选择 A，实施与实际验收状态见 [组件说明](../audio-to-score/README.md)。以下保留当次选型依据。
 
 ## 已确认目标
 
@@ -18,7 +18,7 @@
 
 三者可以复用同一算法实现，音质取决于模型、素材与校正，不能用包装形式判断。Skill 可以包含确定性脚本；MCP 本身不会提升识别精度或自动消除崩溃风险。官方说明：[Skills](https://developers.openai.com/plugins/concepts/skills)、[Build skills](https://developers.openai.com/plugins/build/skills)。
 
-建议 A 的首版使用独立音频 MCP 进程，与现有 Cubase/Piapro MCP 配合。重模型在独立工作进程内运行；稳定 DAW 服务不导入 Torch 或音频模型。这个部署安排仍为提案，尚未注册新服务器。
+选定的 A 首版使用独立音频 MCP 进程，与现有 Cubase/Piapro MCP 配合。重模型在独立工作进程内运行，稳定 DAW 服务不导入 Torch 或音频模型。
 
 ## 上游候选
 
@@ -61,6 +61,6 @@ GAME、TIFA、SOME 的发行说明给模型文件标注 `CC BY-NC-SA 4.0`，不�
 
 宿主收尾必须沿用已记录的单次原生退出协议；原始崩溃与受控重入故障的逐对象关联仍未证实，不能保证厂商宿主绝不崩溃。这里只承诺隔离计算、保护原件与逐阶段验收。
 
-## 待用户选择
+## 已确认方案
 
-建议选 A：以 audio-separator + GAME + TIFA 作为首轮验证组合，增加薄 Skill 组织完整流程；SOME 与 WhisperX 暂作备选。用户尚未接受此建议。收到形式选择后，方可实施依赖安装、模型获取、接口与 Skill 编写及验收。
+用户已明确选择 A：以 audio-separator + GAME + TIFA 作为首轮验证组合，增加薄 Skill 组织完整流程；SOME 与 WhisperX 暂作备选。授权模型、环境和测试资料放 E 盘，先离线验收，再进行 E 盘 Piapro 副本验证，确认稳定后接入 Codex；原工程保持保护。

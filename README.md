@@ -1,6 +1,8 @@
 # Cubase Piapro MCP
 
-本地运行、优先直接处理工程数据的 MCP。当前版本 0.5.0，共 33 个工具，已完成副本实机验收、离线安装及实际 Codex 注册新进程握手。适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
+本地运行、优先直接处理工程数据的 MCP。Cubase/Piapro 主服务当前版本 0.5.0，共 \(33\) 个工具，已完成副本实机验收、离线安装及实际 Codex 注册新进程握手。适配 Windows、Cubase LE 14 和 Piapro Studio Standard，Codex 通过 stdio 启动服务。
+
+另有独立的 [Vocal to Score MCP](audio-to-score/README.md) 与 [初音翻唱 Skill](skills/piapro-cover/SKILL.md)，接入人声分离、GAME 歌声转谱和 TIFA 歌词对齐。重模型使用独立 E 盘环境，不加载进 DAW 服务；离线文件与 Piapro 实时状态分别验收。它不启用下方未发布的插件/EQ/发送扩展。
 
 ## 功能
 

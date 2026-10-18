@@ -366,3 +366,15 @@ final-scene-restored.local.json 已核验无 Cubase/CDB、loopMIDI 保留，稳�
 2026-10-18，北京时间：用户希望先接入人声分离、自动转谱和歌词对齐，再给网易云链接，先做一段副歌试听；用户明确要求比较 MCP 与 Skill，由其决定。当前仅完成本项目和硬件只读检查、官方 Skill/MCP 机制及 GitHub 实时调研，没有安装依赖、下载模型、编写实现、启动 Cubase、发送 MIDI 或改驱动。方案、五个候选的实际 Star/实质提交/发行/源码与权重许可、部署及验收边界统一维护在 [音频转谱提案](audio-to-score-proposal.md)。
 
 建议独立离线音频后端 + MCP 作业接口 + 薄 Skill，首轮验证组合为 audio-separator、GAME、TIFA；SOME/WhisperX 为备选。这仍是未接受的建议，不是开发完成状态。实际发现 audio-separator 与 GAME 的 NumPy 约束不相容，必须隔离环境；GAME/TIFA 源码 MIT 不代表模型权重同许可，发行说明和维护者澄清已记录。缺词识别和歌词对齐分开，优先确认过的歌词；保留一字多音、音素边界和原曲偏移。所有下载、环境与样本放 E 盘；计算先脱离宿主运行，最后才在 E 盘副本做导入、完整回读、试听和恢复。现有原始宿主崩溃未完全闭环的边界及新宿主工具发布暂停状态保持。下一步等待用户选择 A（MCP + Skill）、B（仅 MCP）或 C（仅 Skill + 脚本），不得将未回复当同意。
+
+2026-10-18 19:01 起，北京时间：用户已明确选择 A，授权 audio-separator + GAME + TIFA、独立 MCP + Skill；先离线、再 E 盘 Piapro 副本，验收稳定后接入 Codex。上段待选择状态至此结束。当前恢复点由 E 盘 vocal-to-score-current.local.json 定位，包含修改前 source-before.tar、原工程和稳定驱动哈希；均未修改，未启动 DAW。E 盘三环境为 control、separation、score；使用现有 E 盘 Torch 2.7.1+cu128/torchaudio 安装包，无系统驱动升级。已按独立命名目录克隆并固定 audio-separator v0.47.0、GAME v1.0.3、TIFA v1.0.0；GAME small 与 TIFA ST 下载通过 GitHub 发行 digest 校验，Demucs 默认权重另外下载。新增独立 audio-to-score 子项目正在实现，尚未接入生产 Codex、安装 Skill 或做离线/宿主验收，不得声称完成。已读取 skill-creator，未使用子代理。需继续落实后台作业/取消、真实三模型输出及字音符适配测试，特别核验一字多音、非 Vocaloid 音素边界及失败状态；先对自制历史样本验证，不用原训练工程作为测试输入。
+
+19:49 阶段：独立 0.1.0 音频 MCP 实现六工具与 piapro-cover Skill，23 项专项通过。Windows 最小环境缺 tzdata 的时间错误改用明确北京时间偏移；audio-separator 对 audioread 的直接依赖在新版 librosa 下缺失，已显式补齐独立环境依赖；MCP 2.3 的裸 dict 不提供结构化结果，现用 dict[str, Any] 和 structured_output，领域错误继承 ToolError，真实 SDK 已核验错误码可见。最初只检测取消外层，增加真实进程身份检查后现有取消协议也通过，未凭怀疑增加进程树终止代码。中文复合词重复分配全词已由失败回归修正，空白间隔单独处理；未知字音对应保留读音与原词并要求校正。
+
+E 盘 wheel 0.1.0 已装入 control，七个运行文件逐字与 wheel 相同；隔离入口来自 E 盘 site-packages，不从源码回退。以新安装包实际 SDK 执行三模型完整链路与真实后端启动时取消通过。无约束 GAME 八音符全部离散音高相符，最大 \(4.2\,\mathrm{cent}\)、起音误差至多 \(0.02\,\mathrm{s}\)；该指标不属于 TIFA 约束后的语音边界时序。受控四音符混音的分离 SI-SDR 约由 \(3.32\,\mathrm{dB}\) 提升到 \(33.57\,\mathrm{dB}\)，只代表简单自制样本。诊断、实际报告及恢复点都在本轮 E 盘，不上传模型/音频/本机配置。模型与上游源码身份在运行前核验，三个环境依赖锁已保存，重模型不进入旧主服务。
+
+19:36 至 19:45 仅打开新 E 盘 Vocal to Score Lab，PID 38212；模板、唯一现有 Piapro、稳定 host-cache-1 驱动均实测。用自制 VSQX 的原生歌手表创建四音符新谱，未复制原曲音乐；实际导入、PPSF/VSQX 全量音符/歌词/音素回读及非静音 WAV 成功。恢复原空白 PPSF 后完整 expressions.revision 一致，再次导出确认后只投递一次动态原生 Quit 227，真实退出码 0，无保存询问。正常堆 CDB 观察器无 AV，崩溃报告清单无新增，原 CPR SHA ea840fdf...、驱动 SHA 0c889ff6...及模板磁盘内容保持；Cubase/CDB 均已退出。没有重载驱动、创建第二 Piapro 或更改全局调试注册表，不把本次稳定验收写成已修复旧厂商内部崩溃。
+
+声库注册及捕获定义确认当前只有日语五种与英语一种，未发现中文声库，已在工作中向用户说明。当前中文/英语 TIFA 使用本机 SAPI 自制语音样本另验，均成功输出对应文本/音素，但未据此声明中文/英语歌声或 Piapro 中文发音已验收。尚需完成最终 Codex 注册、已保存配置的新连接/Skill 核验、文档同步与私有 Git 提交推送，不能仅凭 wheel 已安装称当前聊天已热重连。
+
+19:56 接入收尾：独立音频组件最终 \(24\) 项专项通过，Skill 验证通过。安装器额外核对已验收的七个运行文件哈希与版本，阻止同版本未验收源码被注册；正式包 wheel SHA 为 ee2852117960cd3161bf315f18389bae1d4aa4a97f2358775f4d0aeabf1b375b。实际 Codex TOML 新增 vocal-to-score，原配置备份后深比较其他所有值保持；Skill 安装在实际 E 盘 Codex home 的 skills/piapro-cover，两个文件逐字验证。以实际保存的 command/args/env 启动新 SDK 连接，确认 0.1.0、六工具、音频读取及已验收四音符乐谱读取通过。当前聊天工具发现未热更新，不能称旧连接已自动重连；新连接的可用性已实测。不强制重启 Codex、不创建新聊天、不触碰旧 Cubase 服务配置。所有恢复点、诊断和样本留在本轮 E 盘，原始宿主控制扩展继续维持未发布状态。剩余收尾仅私有 Git 同步及独立音频组件的发布记录，不等待用户选择或解锁。

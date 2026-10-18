@@ -1,0 +1,12 @@
+interface:
+  display_name: "初音翻唱准备"
+  short_description: "分离人声、对齐歌词并转成可编辑乐谱，通过 Piapro 副本制作试听"
+  default_prompt: "使用 $piapro-cover 从已确认的音频和歌词制作一段初音副歌试听。"
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "vocal-to-score"
+      description: "独立离线音频处理服务"
+    - type: "mcp"
+      value: "cubase-piapro"
+      description: "已验收的乐谱读写与 Piapro 控制服务"

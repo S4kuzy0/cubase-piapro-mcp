@@ -1,0 +1,9 @@
+# Use the pinned GAME/TIFA checkouts recorded by configure_local.py.
+# Install their requirements with these compatibility constraints.
+numpy==1.26.4
+lightning==2.6.1
+fugashi==1.5.2
+unidic==1.1.0
+unidic-lite==1.0.8
+onnxruntime==1.31.0
+textgrid==1.6.1
