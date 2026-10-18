@@ -27,6 +27,8 @@
 
 ## 部署
 
+独立发布：[audio-v0.1.0](https://github.com/S4kuzy0/cubase-piapro-mcp/releases/tag/audio-v0.1.0)，包含已验收 wheel 和 Skill ZIP。此音频组件与主服务的 `v0.5.0` 分开发布；模型、词典和声库不包含在发布资产中。
+
 全部环境、模型、缓存、下载和样本放在 E 盘。建议一个控制环境，以及互相隔离的 separation 和 score 环境。下载须各自建文件名主体目录；`scripts/fetch_asset.py` 支持发行 SHA-256 校验和安全 ZIP 解包。包管理器的缓存及临时目录也需显式指向本轮 E 盘目录。
 
 已选上游为 audio-separator `v0.47.0`、GAME `v1.0.3`、TIFA `v1.0.0`；完整提交身份由 `configure_local.py` 记录。本机使用 Torch/torchaudio `2.7.1+cu128`。不要将 NumPy 主版本要求互相冲突的环境合并。audio-separator 的 `audioread` 直接导入依赖已在 `requirements-separation.txt` 显式补齐。
