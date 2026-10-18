@@ -29,10 +29,11 @@
 ```powershell
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.lock
-.venv/Scripts/python.exe run_server.py
+.venv/Scripts/python.exe -m pip install --no-deps "已验收 wheel 的完整路径"
+.venv/Scripts/python.exe -I -B -X utf8 -m cubase_piapro_mcp.server
 ```
 
-`requirements.lock` 是本机已验证的 Windows/Python 3.12 依赖快照。其他平台可使用 `pip install .`，实时 Piapro 控制仍限 Windows。
+`requirements.lock` 是本机已验证的 Windows/Python 3.12 依赖快照。正式使用从下方私有发布取得的已验收 wheel，下载时存入 E 盘独立目录。实时 Piapro 控制仍限 Windows。`run_server.py` 明确用于源码开发，会优先导入工作区的 `src`，不能作为稳定发行包的启动入口。
 
 ### 接入 Codex
 
@@ -42,7 +43,7 @@ python -m venv .venv
 
 `--focus-click` 是保留的旧兼容设置。当前文件操作、添加对话框及路由使用原生激活通知，不依赖此开关或前台焦点；可省略该参数。
 
-安装脚本先备份现有 Codex 配置，再使用 `codex mcp add` 注册 `cubase-piapro`。本机已经完成注册，当前聊天实际发现工具并执行过调用。`codex mcp get cubase-piapro --json` 可检查注册结果。新配置通常需在新会话中加载；注册成功不能代替工具握手验证。
+安装脚本先检查所选 Python 能独立导入已安装包，再备份现有 Codex 配置，使用 `codex mcp add` 注册 `cubase-piapro`。默认通过隔离模式启动已安装模块，忽略当前目录、用户 site 和 `PYTHONPATH`，缺包时拒绝注册；不回退到开发源码。本机曾完成注册和实际工具调用。`codex mcp get cubase-piapro --json` 可检查注册结果；修改配置不能代替重新连接后的握手，已运行的旧服务也不会因此改变导入代码。
 
 多组宿主 EVEC 编译可能超过默认单工具等待时间，安装脚本仅将本服务器的 `tool_timeout_sec` 设为 \(900\,\mathrm{s}\)，备份并核验其他设置不变；本机也已设置并读回确认。字段及默认值见 [OpenAI 官方配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。
 

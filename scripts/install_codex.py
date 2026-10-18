@@ -1,4 +1,4 @@
-"""Register the verified stdio launcher, preserving the user's current config."""
+"""Register an isolated installed-package launcher, preserving current config."""
 
 from __future__ import annotations
 
@@ -14,6 +14,10 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+
+PYTHON_FLAGS = ["-I", "-B", "-X", "utf8"]
+SERVER_MODULE = "cubase_piapro_mcp.server"
 
 
 def set_tool_timeout(config, backup):
@@ -60,8 +64,18 @@ def main():
         help="Retain the legacy focus-click setting; current native file operations do not use it",
     )
     args = parser.parse_args()
-    root = Path(__file__).resolve().parents[1]
     runtime = Path(args.python).resolve(strict=True)
+    try:
+        subprocess.run(
+            [str(runtime), *PYTHON_FLAGS, "-c", f"import {SERVER_MODULE}"],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError:
+        raise RuntimeError(
+            "Install a verified MCP wheel into the selected Python before registration; "
+            "workspace source is never used as a fallback."
+        ) from None
     state = Path(args.state_dir).resolve()
     state.mkdir(parents=True, exist_ok=True)
     config_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
@@ -88,7 +102,9 @@ def main():
         "CUBASE_PIAPRO_FOCUS_CLICK=" + ("1" if args.focus_click else "0"),
         "--",
         str(runtime),
-        str(root / "run_server.py"),
+        *PYTHON_FLAGS,
+        "-m",
+        SERVER_MODULE,
     ]
     subprocess.run(command, check=True)
     timeout_backup = state / ('codex-config-before-timeout-' + stamp + '.toml')
@@ -115,7 +131,8 @@ def main():
         if before is not None
         else None,
         "python": str(runtime),
-        "launcher": str(root / "run_server.py"),
+        "launcher": SERVER_MODULE,
+        "launch_args": [*PYTHON_FLAGS, "-m", SERVER_MODULE],
         "entry": entry,
     }
     (state / "codex-install.json").write_text(
