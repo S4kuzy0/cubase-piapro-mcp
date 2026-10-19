@@ -504,3 +504,8 @@ E 盘 wheel 0.1.0 已装入 control，七个运行文件逐字与 wheel 相同�
 用户要求依据新的 vocaloid-vocal-production 技能继续 DSH 三版 SAKURA，从混音入手贴近原曲，并补第一遍ありがとう的末尾音节。单句原曲重新对齐查明长尾元音及下一句起点错配，仅修订目标两句，其余音符和五曲线保持；原生回读、真实出声、工程保存、临时现场恢复和单次正常退出完成。
 
 全曲按参考主唱作有界 EQ、平滑句级电平及重新生成空间效果。完整编码解码、同增益分轨、可编辑包和四十二个受保护源文件的哈希检查通过；无独立人工听审。原生 CPR 未另行重开，离线混音不包含在原生乐谱中。脱敏制作与验收记录见 [sakura-reference-mix-20261019.md](sakura-reference-mix-20261019.md)，本机产物与接续入口留在当前任务记忆和共享交接，不上传音乐、歌词、工程、脚本或本机配置。
+
+
+## 2026-10-19 SAKURA playback project
+
+The corrected vocal CPR was reopened and its native VSQX matched the corrected readback exactly. The separate stereo instrumental was imported into Cubase at the song origin and saved beside the project. Host playback feedback and both channel signals were verified; the DAW remains open at the user's request. Offline mix effects remain separate. See the playback section in [sakura-reference-mix-20261019.md](sakura-reference-mix-20261019.md).

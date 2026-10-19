@@ -11,3 +11,12 @@ Mixing used the original vocal stem as a reference for bounded broad EQ, smooth 
 Full WAV, FLAC and decoded MP3 have identical duration and channel layout. FLAC matches WAV exactly; aligned stems reconstruct the master within quantization error. Sample, oversampled and input true-peak measurements passed. Loudness parsing used the complete final JSON object from FFmpeg, avoiding accidental reads of an initial silent measurement. The first render completed its audio exports before a metadata-only error; the metadata writer was corrected and all four existing audio files were independently recomputed and matched within quantization error without being rewritten.
 
 The delivery contains the full mix, the repaired phrase excerpt, an RMS-matched comparison with DSH A, aligned stems and editable scores/settings. Technical and fitted reference metrics are not presented as a perceptual similarity score. No independent human listening review was performed. Music, lyrics, voice libraries, native projects, local paths, scripts, diagnostics and credentials are excluded from this repository.
+
+
+## Editable vocal and instrumental playback
+
+The saved corrected vocal project was reopened in Cubase and Piapro. A complete native VSQX export matched the corrected readback byte for byte. A separate stereo PCM WAV instrumental was imported at the song origin without stretching or sample-rate/bit-depth conversion, and kept in the project Audio directory. Only one Piapro instance and one accompaniment channel are present in the live inventory.
+
+Native host feedback confirmed playback with recording off. Both channels produced signal, and the observed output peak hold remained below full scale. The project was saved with the audition cursor near the repaired phrase and cycle disabled, then left open at the user's request. The project containing the imported instrumental was saved but not closed and reopened. Offline EQ, phrase processing and ambience from the delivered mix are not represented as installed real-time effects. This is transport/signal validation, not an independent listening review.
+
+Native menu dispatch requires the intended Cubase window to be active: posting host command identifiers while Piapro owns command focus can open an unrelated plugin export dialog. Those extra dialogs were cancelled without writing a file. Floating mixer handles may change on reopening and must be re-enumerated. No installed adapter, driver or application code was changed.
